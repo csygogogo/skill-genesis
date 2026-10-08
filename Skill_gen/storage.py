@@ -49,7 +49,10 @@ def listing(limit=50, offset=0):
 
 
 def create(intent):
-    session = {"id": uuid4().hex, "intent": intent, "status": "queued", "created_at": now(), "updated_at": now()}
+    session = {
+        "id": uuid4().hex, "intent": intent, "status": "queued",
+        "phase": "generate", "round": 0, "created_at": now(), "updated_at": now(),
+    }
     (folder(session["id"]) / "skills").mkdir(parents=True)
     save_session(session)
     return session
@@ -82,6 +85,34 @@ def version_content(session_id, version_id):
                 found = True
                 content = content + event["delta"] if "delta" in event else event.get("content", content)
     return content if found else None
+
+
+def latest_skill(session_id):
+    """返回事件流中最后一个 Skill 版本 {"id", "round", "content"}；没有版本时返回 None。"""
+    contents, order, cursor = {}, [], 0
+    while batch := read_events(session_id, cursor):
+        for event in batch:
+            cursor = event["seq"]
+            if event["type"] in ("skill", "optimized_skill", "final_skill"):
+                if event["id"] not in contents:
+                    order.append(event)
+                previous = contents.get(event["id"], "")
+                contents[event["id"]] = (
+                    previous + event["delta"] if "delta" in event
+                    else event.get("content", previous)
+                )
+    if not order:
+        return None
+    last = order[-1]
+    return {"id": last["id"], "round": last.get("round", 0), "content": contents[last["id"]]}
+
+
+def requeue_optimize(session_id):
+    """把会话重新排队进入下一轮优化；由 worker 像生成任务一样领取执行。"""
+    session = get(session_id)
+    session.update(phase="optimize", round=session.get("round", 0) + 1, status="queued", updated_at=now())
+    save_session(session)
+    return session
 
 
 def write_skill(session_id, version_id):

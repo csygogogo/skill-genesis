@@ -26,7 +26,7 @@ def wait_for(base, session_id, statuses):
 
 
 def download(base, session_id):
-    with urlopen(f"{base}/api/skills/sessions/{session_id}/versions/skill-final/download") as response:
+    with urlopen(f"{base}/api/skills/sessions/{session_id}/versions/skill-0/download") as response:
         assert "attachment" in response.headers["Content-Disposition"]
         return response.read().decode("utf-8")
 
@@ -41,7 +41,7 @@ def check_persistence():
         with urlopen(f"{base}/api/skills/sessions/{session['id']}/events", timeout=10) as response:
             while not response.readline().startswith(b"data: "):
                 pass
-        wait_for(base, session["id"], {"completed"})
+        wait_for(base, session["id"], {"generated"})
         saved["content"] = download(base, session["id"])
         assert "关闭页面后继续执行" in saved["content"]
         # 创建另外 19 条独立记录并停止，确认不会覆盖、不会删除部分结果。
@@ -55,7 +55,7 @@ def check_persistence():
         assert len({s["id"] for s in page["items"] + page2["items"]}) == 20
         with urlopen(f"{base}/api/skills/sessions/{session['id']}/events") as response:
             saved["events"] = response.read()
-        assert b"execution_trace" in saved["events"]
+        assert b'"type": "skill"' in saved["events"]
         saved["active"] = request(base, body={"intent": "服务重启时中断的任务"})["id"]
         wait_for(base, saved["active"], {"running"})
         saved["queued"] = request(base, body={"intent": "重启后继续排队的任务"})["id"]
@@ -68,7 +68,7 @@ def check_persistence():
         with urlopen(f"{base}/api/skills/sessions/{saved['id']}/events") as response:
             assert response.read() == saved["events"]
         assert request(base, "/" + saved["active"])["status"] == "interrupted"
-        wait_for(base, saved["queued"], {"completed"})
+        wait_for(base, saved["queued"], {"generated"})
         assert "重启后继续排队" in download(base, saved["queued"])
         print("PASS: history, events and downloads survive restart; interrupted status; queued task resumes")
         # 只删除临时测试记录：覆盖完成、执行中、排队三种状态。
@@ -78,7 +78,7 @@ def check_persistence():
         for session_id in (queued, running, saved["id"]):
             request(base, "/" + session_id, method="DELETE")
             assert not (history / session_id).exists()
-            for suffix in ("", "/events", "/versions/skill-final/download"):
+            for suffix in ("", "/events", "/versions/skill-0/download"):
                 try:
                     request(base, "/" + session_id + suffix)
                 except HTTPError as error:

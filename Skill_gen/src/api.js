@@ -13,8 +13,8 @@ export async function api(config, path = '', options = {}) {
   return response;
 }
 
-export async function* sessionEvents(config, sessionId, signal) {
-  const response = await api(config, `/${encodeURIComponent(sessionId)}/events`, {
+export async function* sessionEvents(config, sessionId, signal, after = 0) {
+  const response = await api(config, `/${encodeURIComponent(sessionId)}/events?after=${after}`, {
     signal, headers: { Accept: 'text/event-stream' },
   });
   if (!response.body || !response.headers.get('content-type')?.includes('text/event-stream')) throw new Error('记录接口未返回 SSE 事件流。');

@@ -11,24 +11,28 @@ from fastapi import Body, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pipeline import generate_events
+from pipeline import generate_events, optimize_events
 import storage
 
 tasks = {}
 
 
+def plan_events(session):
+    # 生成阶段产出初始版本；优化阶段基于事件流中的最新版本再跑一轮。
+    if session.get("phase") == "optimize":
+        latest = storage.latest_skill(session["id"])
+        if latest is None:
+            raise RuntimeError("No skill version available to optimize")
+        return optimize_events(session["intent"], latest["content"], session["round"])
+    return generate_events(session["intent"])
+
+
 async def run_session(session):
     session_id = session["id"]
     try:
-        async for event in generate_events(session["intent"]):
-            if event["type"] == "done":
-                storage.append(session_id, {**event, "status": "completed"}, "completed")
-                return
-            if event["type"] == "error":
-                storage.append(session_id, event, "failed")
-                return
+        async for event in plan_events(session):
             storage.append(session_id, event)
-        raise RuntimeError("Pipeline ended without done")
+        storage.append(session_id, {"type": "done", "status": "generated"}, "generated")
     except asyncio.CancelledError:
         storage.append(session_id, {"type": "done", "status": "interrupted", "message": "服务停止，已保留当前记录。"}, "interrupted")
         raise
@@ -145,6 +149,16 @@ async def stop_session(session_id: str):
     if task := tasks.get(session_id):
         task.cancel()
     return require_session(session_id)
+
+
+@app.post("/api/skills/sessions/{session_id}/optimize")
+async def optimize_session(session_id: str):
+    session = require_session(session_id)
+    if session["status"] in storage.ACTIVE:
+        raise HTTPException(409, "Session is still running")
+    if storage.latest_skill(session_id) is None:
+        raise HTTPException(409, "No skill version to optimize yet")
+    return storage.requeue_optimize(session_id)
 
 
 @app.get("/api/skills/sessions/{session_id}/versions/{version_id}/download")

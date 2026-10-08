@@ -59,6 +59,22 @@ def check_static(base):
     print("PASS: Python static server, UTF-8 and JavaScript MIME types")
 
 
+def wait_for_status(base, session_id, status, timeout=20):
+    for _ in range(int(timeout / 0.1)):
+        with urlopen(f"{base}/api/skills/sessions/{session_id}") as response:
+            session = json.load(response)
+        if session["status"] == status:
+            return session
+        time.sleep(0.1)
+    raise AssertionError(f"Session did not reach {status}")
+
+
+def session_events(base, session_id):
+    # 会话结束后事件流会自然终止，可一次读完。
+    with urlopen(f"{base}/api/skills/sessions/{session_id}/events", timeout=20) as response:
+        return [json.loads(line[6:]) for line in response.read().decode().splitlines() if line.startswith("data: ")]
+
+
 def check_api(base):
     check_static(base)
     for path in ("/storage.py", "/history/example/session.json", "/requirements.txt"):
@@ -78,22 +94,8 @@ def check_api(base):
         assert response.headers["Content-Type"].startswith("text/event-stream")
         assert response.headers["Access-Control-Allow-Origin"] == "http://127.0.0.1:5173"
         events = [json.loads(line[6:]) for line in response.read().decode().splitlines() if line.startswith("data: ")]
-    assert events[0]["type"] == "subgraph"
-    assert events[-1]["type"] == "done"
-    assert any(e["type"] == "strategy" for e in events)
-    for round_number in (1, 2):
-        chunks = [e["delta"] for e in events if e.get("id") == f"skill-{round_number}"]
-        assert chunks and intent in "".join(chunks)
-    final = next(e["content"] for e in events if e["type"] == "final_skill")
-    assert final == "".join(e["delta"] for e in events if e.get("id") == "skill-2")
-    for skill_id in ("skill-0", "skill-1", "skill-2", "skill-final"):
-        skill_end = max(i for i, e in enumerate(events) if e.get("id") == skill_id)
-        traces = [(i, e) for i, e in enumerate(events) if e.get("skill_id") == skill_id]
-        assert traces and traces[0][0] > skill_end
-        assert traces[0][1]["status"] == "running"
-        assert traces[-1][1]["status"] == "completed"
-        assert len({e["id"] for _, e in traces}) == 1
-        assert any(e.get("delta") for _, e in traces)
+    assert events[0]["type"] == "skill" and intent in events[0]["content"]
+    assert events[-1]["type"] == "done" and events[-1]["status"] == "generated"
     for body in ({}, {"intent": ""}, {"intent": "x" * 8001}, {"intent": []}):
         invalid = Request(endpoint, json.dumps(body).encode(), {"Content-Type": "application/json"})
         try:
@@ -103,7 +105,27 @@ def check_api(base):
             error.close()
         else:
             raise AssertionError(f"Expected 422 for {body}")
-    print("PASS: FastAPI SSE, CORS, Chinese text, rounds, deltas and input validation")
+
+    # 分步流程：生成结束后可反复点击优化，每轮基于上一版本。
+    created = Request(base + "/api/skills/sessions", json.dumps({"intent": intent}).encode(), {"Content-Type": "application/json"})
+    with urlopen(created) as response:
+        session_id = json.load(response)["id"]
+    wait_for_status(base, session_id, "generated")
+    skill_0 = next(e for e in session_events(base, session_id) if e.get("id") == "skill-0")
+    previous = skill_0["content"]
+    for round_number in (1, 2):
+        optimize = Request(f"{base}/api/skills/sessions/{session_id}/optimize", b"{}", {"Content-Type": "application/json"}, "POST")
+        with urlopen(optimize) as response:
+            session = json.load(response)
+        assert session["phase"] == "optimize" and session["round"] == round_number and session["status"] == "queued"
+        wait_for_status(base, session_id, "generated")
+        optimized = next(e for e in session_events(base, session_id) if e.get("id") == f"skill-{round_number}")
+        assert optimized["type"] == "optimized_skill" and optimized["round"] == round_number
+        assert optimized["content"].startswith(previous)
+        previous = optimized["content"]
+    with urlopen(f"{base}/api/skills/sessions/{session_id}/versions/skill-2/download") as response:
+        assert response.read().decode("utf-8") == previous
+    print("PASS: FastAPI SSE, CORS, step-by-step optimize rounds, downloads and input validation")
 
 
 if __name__ == "__main__":

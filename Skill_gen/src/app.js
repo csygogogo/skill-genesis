@@ -10,9 +10,9 @@ try {
       && ['127.0.0.1', 'localhost', '[::1]'].includes(new URL(saved.endpoint).hostname)) delete saved.endpoint;
 } catch {}
 let config = { ...defaults, mode: saved.mode || defaults.mode || 'api', endpoint: saved.endpoint || defaults.endpoint };
-let events = [], selectedVersion = '', filter = 'all', running = false, controller;
+let events = [], selectedVersion = '', filter = 'all', running = false, controller, lastSeq = 0, phaseLabel = '生成中';
 let toastTimer, currentSession = null, sessionConfig = null, view = 0, historyLimit = 50, historyRequest = 0, pendingDelete = null;
-const sessionLabels = { queued: '排队中', running: '生成中', completed: '已完成', failed: '失败', stopped: '已停止', interrupted: '已中断', deleted: '已删除' };
+const sessionLabels = { queued: '排队中', running: '生成中', generated: '已生成', completed: '已完成', failed: '失败', stopped: '已停止', interrupted: '已中断', deleted: '已删除' };
 const labels = { subgraph: '子图信息', skill: '初始 Skill', optimized_skill: '优化后的 Skill', strategy: '调整策略', execution_trace: '执行轨迹', final_skill: '最终 Skill' };
 const isSkill = (event) => ['skill', 'optimized_skill', 'final_skill'].includes(event.type);
 const currentVersion = () => events.find(e => e.id === selectedVersion);
@@ -72,6 +72,7 @@ function renderPreview() {
   $('copy').disabled = $('download').disabled = !v?.content;
   $('latest-label').textContent = v && v.id !== versions.at(-1)?.id ? '历史版本' : '最新版本';
   if (v) { $('skill-content').innerHTML = markdown(v.content); $('preview-version').textContent = v.type === 'final_skill' ? 'FINAL' : `V${v.round ?? 0}`; $('preview-subtitle').textContent = versionLabel(v); }
+  updateOptimize();
 }
 function receive(event) {
   if (event.type === 'error') throw new Error(event.message || event.content || '后端生成失败。');
@@ -87,22 +88,30 @@ function receive(event) {
   if (!entry) { entry = { id, content: '', time: new Date(event.created_at || Date.now()).toLocaleTimeString('zh-CN', { hour12: false }) }; events.push(entry); }
   const previous = entry.content;
   Object.assign(entry, event, { id, time: entry.time, content: event.delta != null ? previous + event.delta : event.content ?? previous });
+  if (event.seq != null && event.seq > lastSeq) lastSeq = event.seq;
   if (isSkill(entry)) {
     if (follow) selectedVersion = events.filter(isSkill).at(-1).id;
     renderPreview();
   }
-  status(event.type === 'execution_trace' ? '执行中' : '生成中', 'running');
+  status(event.type === 'execution_trace' ? '执行中' : phaseLabel, 'running');
   const stage = event.type === 'strategy' ? 'optimized_skill' : event.type;
   let passed = true;
   document.querySelectorAll('[data-stage]').forEach(el => { el.classList.toggle('current', el.dataset.stage === stage); el.classList.toggle('done', passed && el.dataset.stage !== stage); if (el.dataset.stage === stage) passed = false; });
   renderTimeline();
 }
 function status(text, className = '') { $('run-status').textContent = text; $('run-status').className = `status ${className}`; }
-function busy(value) { running = value; $('generate').hidden = value; $('stop').hidden = !value; $('intent').disabled = value; $('try-demo')?.toggleAttribute('disabled', value); document.querySelectorAll('[data-prompt]').forEach(b => b.disabled = value); }
+function busy(value) { running = value; $('generate').hidden = value; $('stop').hidden = !value; $('intent').disabled = value; $('try-demo')?.toggleAttribute('disabled', value); document.querySelectorAll('[data-prompt]').forEach(b => b.disabled = value); updateOptimize(); }
+// 优化按钮：API 模式下，当前会话已有 Skill 版本且不在排队/执行时可用；演示模式不支持。
+function canOptimize() {
+  return config.mode === 'api' && currentSession && !running
+    && events.some(isSkill) && !['queued', 'running'].includes(currentSession.status);
+}
+function updateOptimize() { $('optimize').disabled = !canOptimize(); }
 function resetView() {
   view++;
   controller?.abort(); controller = new AbortController();
-  busy(false); currentSession = null; sessionConfig = null;
+  currentSession = null; sessionConfig = null; lastSeq = 0; phaseLabel = '生成中';
+  busy(false);
   events = []; selectedVersion = ''; setFilter('all');
   $('skill-content').innerHTML = '<div class="preview-empty"><h3>等待 Skill 内容</h3><p>生成或选择一条历史记录。</p></div>';
   $('preview-version').textContent = '—'; $('preview-subtitle').textContent = '等待第一个版本';
@@ -115,8 +124,8 @@ function showError(error) {
   $('error-banner').textContent = error instanceof TypeError ? '无法连接后端。已提交的任务仍可能在运行，请刷新记录后查看。' : error.message;
   $('error-banner').hidden = false;
 }
-async function watch(stream, token, started, persistent) {
-  busy(true); $('stop').disabled = false; status('生成中', 'running');
+async function watch(stream, token, started, persistent, label = '生成中') {
+  busy(true); $('stop').disabled = false; phaseLabel = label; status(label, 'running');
   $('stream-label').textContent = persistent ? '记录已保存 · 关闭页面不会停止任务' : '临时演示 · 刷新后不保留';
   const tick = () => { const seconds = Math.max(0, Math.floor((Date.now() - started) / 1000)); $('elapsed').textContent = `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`; };
   tick(); const timer = setInterval(tick, 1000);
@@ -134,7 +143,7 @@ async function watch(stream, token, started, persistent) {
     status(sessionLabels[state] || '已结束', state === 'completed' ? 'complete' : '');
     $('stream-label').textContent = persistent ? `${sessionLabels[state] || '已结束'} · 所有已接收内容保存在后端` : '演示结束 · 数据不保存';
     if (done.message) { $('error-banner').textContent = done.message; $('error-banner').hidden = false; }
-    if (state === 'completed') document.querySelectorAll('[data-stage]').forEach(el => el.classList.add('done'));
+    if (state === 'completed' || state === 'generated') document.querySelectorAll('[data-stage]').forEach(el => el.classList.add('done'));
   } catch (error) {
     if (token !== view) return;
     if (error.name === 'AbortError') { status('已停止'); $('stream-label').textContent = '临时演示已停止'; }
@@ -249,6 +258,20 @@ $('stop').addEventListener('click', async () => {
   if (!currentSession) { controller?.abort(); return; }
   try { await api(sessionConfig, `/${encodeURIComponent(currentSession.id)}/stop`, { method: 'POST' }); refreshHistory(); }
   catch (error) { toast('停止请求失败，请重试；任务仍可能在后端运行。'); }
+});
+// 从最新版本继续一轮优化：提交后从上次事件位置续订，避免重放导致 delta 重复拼接。
+$('optimize').addEventListener('click', async () => {
+  if (!canOptimize()) return;
+  const token = view, id = currentSession.id, runConfig = sessionConfig, cursor = lastSeq;
+  $('optimize').disabled = true;
+  try {
+    const session = await (await api(runConfig, `/${encodeURIComponent(id)}/optimize`, { method: 'POST' })).json();
+    if (token !== view) return;
+    currentSession = session; refreshHistory();
+    await watch(sessionEvents(runConfig, id, controller.signal, cursor), token, Date.now(), true, '优化中');
+  } catch (error) {
+    if (token === view) { status('提交异常', 'error'); showError(error); updateOptimize(); }
+  }
 });
 function setFilter(value) {
   filter = value;
