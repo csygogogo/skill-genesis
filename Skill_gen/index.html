@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#141626" />
+  <meta name="description" content="从意图到可用 Skill，实时查看子图、生成内容与多轮优化。" />
+  <title>Skill Studio · 自生成工作台</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%23705cf0'/%3E%3Cpath d='M18 5 8 18h7l-1 9 10-14h-7z' fill='white'/%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="./styles.css" />
+  <script src="./config.js"></script>
+  <script type="module" src="./src/app.js"></script>
+</head>
+<body>
+  <aside class="sidebar">
+    <a class="brand" href="./"><span class="brand-icon">ϟ</span><span>Skill Studio<small>BUILD · REFINE · EVOLVE</small></span></a>
+    <div class="workspace-label">WORKSPACE</div>
+    <div class="nav-item selected"><span>▧</span> 自生成工作台 <span class="nav-mark">01</span></div>
+    <div class="sidebar-note"><div class="orbit-icon">✧</div><h2>从一个想法开始</h2><p>让知识建立连接，<br />让每一次迭代更进一步。</p><div class="note-line"></div><span>YOUR NEXT SKILL STARTS HERE</span></div>
+    <button class="connection" id="open-settings"><span class="connection-dot"></span><span id="connection-label">演示模式<small>点击配置服务连接</small></span><span>⚙</span></button>
+    <div class="sidebar-footer"><span class="avatar">S</span><div>个人工作空间<small>Skill generation lab</small></div><span class="workspace-badge">LOCAL</span></div>
+  </aside>
+
+  <div class="shell">
+    <header class="topbar"><div class="breadcrumb">工作空间 <span>/</span> <strong>自生成工作台</strong></div><div class="topbar-right"><span class="top-tag">EXPERIMENTAL</span><button class="icon-button" id="settings-top" aria-label="接口设置" title="接口设置">⚙</button></div></header>
+    <main>
+      <div class="page-heading"><div><div class="eyebrow">INTENT TO INTELLIGENCE</div><h1>构建你的下一个 <span>Skill.</span></h1><p>描述目标，连接知识，在持续迭代中生成可用的 Skill。</p></div><div class="heading-decoration" aria-hidden="true">✳</div></div>
+
+      <details class="history-panel" open>
+        <summary>生成记录 <span id="history-count" class="count-badge">0</span><span class="history-caption">保存在后端，随时回来继续查看</span></summary>
+        <div class="history-actions"><button id="new-session" class="primary-button" type="button">＋ 新建生成</button><button id="refresh-history" class="secondary-button" type="button">刷新记录</button><span id="history-message" role="status"></span></div>
+        <div id="history-list" class="history-list" aria-label="历史生成记录"></div>
+        <button id="more-history" class="text-button" type="button" hidden>加载更多记录</button>
+      </details>
+      <section class="intent-panel" aria-labelledby="intent-title">
+        <div class="section-title"><h2 id="intent-title"><span class="purple-icon">✧</span> 你想生成什么 Skill？</h2><span class="muted small">从一个明确的意图开始</span></div>
+        <form id="intent-form"><label class="sr-only" for="intent">Skill 生成意图</label><textarea id="intent" rows="3" maxlength="8000" placeholder="例如：生成一个分析用户反馈的 Skill，自动归类问题、识别高频需求，并输出可执行的产品优化建议。" required></textarea><div class="input-footer"><span class="input-hint"><kbd>Ctrl</kbd> + <kbd>Enter</kbd> 开始生成 <span id="char-count">0 / 8000</span></span><button class="primary-button" id="generate" type="submit"><span>✧</span> 生成 Skill <span>↗</span></button><button class="stop-button" id="stop" type="button" hidden>■ 停止生成</button></div></form>
+        <div class="suggestions"><span>试试这些</span><button type="button" data-prompt="生成一个分析用户反馈的 Skill，自动归类问题、识别高频需求，并输出可执行的产品优化建议。">用户反馈分析 <span>↗</span></button><button type="button" data-prompt="生成一个技术文档编写 Skill，根据代码与接口信息，输出结构清晰、包含使用示例的开发文档。">技术文档编写 <span>↗</span></button><button type="button" data-prompt="生成一个数据质量检查 Skill，检测缺失值、异常值与重复记录，并输出问题摘要和修复建议。">数据质量检查 <span>↗</span></button></div>
+      </section>
+
+      <div class="workbench">
+        <section class="process-panel" aria-labelledby="process-title">
+          <div class="panel-heading"><div><h2 id="process-title">生成过程 <span class="count-badge" id="event-count">0</span></h2><p>从知识子图到最终 Skill，每一步清晰可见</p></div><span class="status" id="run-status" role="status">准备就绪</span></div>
+          <div class="stage-track" aria-label="生成阶段"><div data-stage="subgraph"><span>01</span>子图</div><i></i><div data-stage="skill"><span>02</span>生成</div><i></i><div data-stage="execution_trace"><span>03</span>执行</div><i></i><div data-stage="optimized_skill"><span>04</span>优化</div><i></i><div data-stage="final_skill"><span>05</span>完成</div></div>
+          <div class="filter-row" id="filters" aria-label="筛选输出类型"><button class="active" data-filter="all" aria-pressed="true">全部</button><button data-filter="subgraph" aria-pressed="false">子图信息</button><button data-filter="skill" aria-pressed="false">Skill</button><button data-filter="optimized_skill" aria-pressed="false">优化后的 Skill</button><button data-filter="strategy" aria-pressed="false">调整策略</button><button data-filter="execution_trace" aria-pressed="false">执行轨迹</button></div>
+          <div id="error-banner" class="error-banner" role="alert" hidden></div>
+          <div class="timeline" id="timeline"><div class="empty-state"><div class="empty-symbol">⌘</div><h3>把想法变成能力</h3><p>输入你的意图，生成过程将在这里逐步展开。</p><button class="text-button" id="try-demo">体验示例流程 <span>→</span></button></div></div>
+          <div class="process-footer"><span id="stream-label">等待开始生成</span><span id="elapsed">00:00</span></div>
+        </section>
+
+        <section class="preview-panel" aria-labelledby="preview-title"><div class="panel-heading"><div><h2 id="preview-title"><span class="purple-icon">▤</span> Skill 预览</h2><p id="preview-subtitle">你的可复用能力，即将在此成形</p></div><span class="file-badge">.md</span></div><div class="version-bar"><label for="version">版本</label><select id="version" disabled><option>暂无版本</option></select><span id="latest-label">实时更新</span></div><div class="file-header"><span>▤</span> SKILL.md <span id="preview-version">—</span></div><div class="skill-content" id="skill-content"><div class="preview-empty"><div class="document-symbol">≡<span>✧</span></div><h3>等待第一个版本</h3><p>初始 Skill 和每轮优化结果<br />都可以在这里查看。</p></div></div><div class="preview-footer"><span id="version-count">0 个版本</span><div><button class="secondary-button" id="copy" disabled>复制</button><button class="dark-button" id="download" disabled>↓ 下载 Skill</button></div></div></section>
+      </div>
+      <footer class="page-footer"><span><span class="tiny-spark">✧</span> 为每一次迭代，保留思考的轨迹。</span><span>SKILL STUDIO / 01</span></footer>
+    </main>
+  </div>
+
+  <dialog id="settings"><form id="settings-form"><div class="dialog-heading"><h2>连接生成服务</h2><button type="button" class="icon-button" id="close-settings" aria-label="关闭设置">×</button></div><p>选择演示流程，或连接你的 FastAPI 流式服务。</p><label for="mode">运行模式</label><select id="mode"><option value="demo">演示模式 · 仅临时预览，不保存记录</option><option value="api">API 模式 · 连接 FastAPI</option></select><label for="endpoint">生成接口地址</label><input id="endpoint" type="text" placeholder="/api/skills/sessions" /><p class="settings-help">通过 POST 创建持久会话，通过 GET 接收历史与实时事件。接口协议见项目 README.md。连接地址仅保存在当前浏览器，不包含鉴权密钥。</p><button class="primary-button" type="submit">保存设置</button></form></dialog>
+  <dialog id="delete-dialog" aria-labelledby="delete-title" aria-describedby="delete-description">
+    <h2 id="delete-title">删除这条生成记录？</h2>
+    <p id="delete-intent" class="delete-intent"></p>
+    <p id="delete-description">将永久删除这条记录的全部版本、执行轨迹及后端文件夹，无法恢复。若任务仍在运行，将先停止任务。</p>
+    <p id="delete-error" role="alert" hidden></p>
+    <div class="delete-actions"><button id="cancel-delete" class="secondary-button" type="button" autofocus>取消</button><button id="confirm-delete" class="danger-button" type="button">确认删除</button></div>
+  </dialog>
+  <div id="toast" role="status" hidden></div>
+</body>
+</html>
