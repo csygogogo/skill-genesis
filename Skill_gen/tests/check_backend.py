@@ -119,13 +119,22 @@ def check_api(base):
             session = json.load(response)
         assert session["phase"] == "optimize" and session["round"] == round_number and session["status"] == "queued"
         wait_for_status(base, session_id, "generated")
-        optimized = next(e for e in session_events(base, session_id) if e.get("id") == f"skill-{round_number}")
+        events = session_events(base, session_id)
+        # 每轮先推送五个阶段的进度清单，最后一条全completed，再发优化后的版本。
+        snapshots = [e for e in events if e["type"] == "optimize_step" and e["round"] == round_number]
+        assert snapshots, "missing optimize_step progress events"
+        assert all(step["status"] == "pending" for step in snapshots[0]["steps"])
+        assert any(step["status"] == "running" for snapshot in snapshots for step in snapshot["steps"])
+        final_steps = snapshots[-1]["steps"]
+        assert len(final_steps) == 5 and all(step["status"] == "completed" for step in final_steps)
+        optimized = next(e for e in events if e.get("id") == f"skill-{round_number}")
         assert optimized["type"] == "optimized_skill" and optimized["round"] == round_number
+        assert snapshots[-1]["seq"] < optimized["seq"]
         assert optimized["content"].startswith(previous)
         previous = optimized["content"]
     with urlopen(f"{base}/api/skills/sessions/{session_id}/versions/skill-2/download") as response:
         assert response.read().decode("utf-8") == previous
-    print("PASS: FastAPI SSE, CORS, step-by-step optimize rounds, downloads and input validation")
+    print("PASS: FastAPI SSE, CORS, optimize progress events, step-by-step rounds, downloads and input validation")
 
 
 if __name__ == "__main__":

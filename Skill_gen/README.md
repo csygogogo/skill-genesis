@@ -22,6 +22,8 @@ pip install --no-compile -r requirements.txt
 
 - `generate_skill(intent)` — 点击「生成 Skill」时调用，产出初始版本 V0。
 - `optimize_skill(intent, skill, round_number)` — 点击「优化 Skill」时调用；`skill` 是当前最新版本内容，`round_number` 从 1 开始，每点击一次加一。
+  - 逐阶段写法（推荐）：改成生成器，按 `OPTIMIZE_STEPS` 的序号逐阶段 `yield {"step": 1, "status": "running", "content": "可选说明"}`，每个阶段先 running、结束时再 completed；界面会实时显示各阶段进度（优化中…），全部结束后再 `yield` 优化后的完整 Markdown 字符串。
+  - 整体写法：普通函数 / 协程直接返回完整 Markdown，界面只显示「优化中」，完成后展示新版本。
 
 ## 文件
 

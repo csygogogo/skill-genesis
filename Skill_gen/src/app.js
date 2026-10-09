@@ -13,7 +13,7 @@ let config = { ...defaults, mode: saved.mode || defaults.mode || 'api', endpoint
 let events = [], selectedVersion = '', filter = 'all', running = false, controller, lastSeq = 0, phaseLabel = '生成中';
 let toastTimer, currentSession = null, sessionConfig = null, view = 0, historyLimit = 50, historyRequest = 0, pendingDelete = null;
 const sessionLabels = { queued: '排队中', running: '生成中', generated: '已生成', completed: '已完成', failed: '失败', stopped: '已停止', interrupted: '已中断', deleted: '已删除' };
-const labels = { subgraph: '子图信息', skill: '初始 Skill', optimized_skill: '优化后的 Skill', strategy: '调整策略', execution_trace: '执行轨迹', final_skill: '最终 Skill' };
+const labels = { subgraph: '子图信息', skill: '初始 Skill', optimized_skill: '优化后的 Skill', strategy: '调整策略', execution_trace: '执行轨迹', optimize_step: '优化进度', final_skill: '最终 Skill' };
 const isSkill = (event) => ['skill', 'optimized_skill', 'final_skill'].includes(event.type);
 const currentVersion = () => events.find(e => e.id === selectedVersion);
 const escape = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -54,11 +54,18 @@ function traceCard(event) {
   const skill = events.find(e => isSkill(e) && e.id === event.skill_id);
   return `<h3>${escape(event.title || 'Skill 执行记录')} <span class="trace-status">${state[event.status] || '执行记录'}</span></h3><p class="event-summary">${escape(event.content || '等待执行输出…')}</p>${skill ? `<button class="event-action" data-version="${escape(skill.id)}">查看执行的 Skill · ${escape(versionLabel(skill))} →</button>` : ''}`;
 }
+function stepChecklist(event) {
+  // 优化阶段的实时清单：等待 ○ / 优化中 spinner / 完成 ✓ / 失败 ×。
+  const words = { pending: '等待中', running: '优化中…', completed: '已完成', failed: '失败' };
+  const marks = { completed: '✓', failed: '×' };
+  const steps = event.steps || [];
+  return `<h3>本轮优化流程 <span class="trace-status">${steps.filter(s => s.status === 'completed').length}/${steps.length} 阶段</span></h3><div class="step-list">${steps.map(s => `<div class="step-item ${escape(s.status || 'pending')}"><span class="step-mark">${s.status === 'running' ? '<span class="step-spinner"></span>' : marks[s.status] || String(s.step)}</span><div class="step-body"><div class="step-name"><span>${escape(s.step)}. ${escape(s.title || '')}</span><small>${words[s.status] || '等待中'}</small></div>${s.content ? `<p class="step-note">${escape(s.content)}</p>` : ''}</div></div>`).join('')}</div>`;
+}
 function renderTimeline() {
   const box = $('timeline');
   const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 75;
   const visible = events.filter(e => filter === 'all' || e.type === filter || (filter === 'optimized_skill' && e.type === 'final_skill'));
-  box.innerHTML = visible.length ? visible.map(e => `<article class="event" data-type="${e.type}"><span class="event-icon">${e.type === 'subgraph' ? '⌘' : e.type === 'strategy' ? '↗' : e.type === 'execution_trace' ? '▷' : '✓'}</span><div class="event-header">${labels[e.type]}<span class="event-tag ${e.type === 'final_skill' ? 'final' : ''}">${e.type === 'subgraph' ? 'KNOWLEDGE' : e.type === 'final_skill' ? 'FINAL' : e.round != null ? `第 ${escape(e.round)} 轮` : 'V0'}</span><time>${escape(e.time)}</time></div><div class="event-card ${e.type === 'strategy' ? 'strategy-card' : e.type === 'execution_trace' ? 'trace-card' : ''}">${e.type === 'subgraph' ? `<h3>${escape(e.title || '任务知识子图')}</h3><p class="event-summary">${escape(e.content)}</p>${graph(e)}` : e.type === 'execution_trace' ? traceCard(e) : e.type === 'strategy' ? `<div class="strategy-text">${escape(e.content || '正在接收调整策略…')}</div>` : `<h3>${e.type === 'final_skill' ? '优化完成，可查看并下载' : e.type === 'skill' ? '已生成基础任务结构' : '已更新执行指令与约束'}</h3><p class="event-summary">${escape(e.summary || `${e.content.length} 字符 · ${e.type === 'skill' ? '初始版本' : '保留完整版本内容'}`)}</p><button class="event-action" data-version="${escape(e.id)}">查看此版本 <span>→</span></button>`}</div></article>`).join('') : `<div class="empty-state"><p>${events.length ? '当前标签下还没有输出' : '正在等待服务返回第一条信息…'}</p></div>`;
+  box.innerHTML = visible.length ? visible.map(e => `<article class="event" data-type="${e.type}"><span class="event-icon">${e.type === 'subgraph' ? '⌘' : e.type === 'strategy' ? '↗' : e.type === 'execution_trace' ? '▷' : e.type === 'optimize_step' ? '⚙' : '✓'}</span><div class="event-header">${labels[e.type]}<span class="event-tag ${e.type === 'final_skill' ? 'final' : ''}">${e.type === 'subgraph' ? 'KNOWLEDGE' : e.type === 'final_skill' ? 'FINAL' : e.round != null ? `第 ${escape(e.round)} 轮` : 'V0'}</span><time>${escape(e.time)}</time></div><div class="event-card ${e.type === 'strategy' ? 'strategy-card' : e.type === 'execution_trace' ? 'trace-card' : e.type === 'optimize_step' ? 'step-card' : ''}">${e.type === 'subgraph' ? `<h3>${escape(e.title || '任务知识子图')}</h3><p class="event-summary">${escape(e.content)}</p>${graph(e)}` : e.type === 'execution_trace' ? traceCard(e) : e.type === 'optimize_step' ? stepChecklist(e) : e.type === 'strategy' ? `<div class="strategy-text">${escape(e.content || '正在接收调整策略…')}</div>` : `<h3>${e.type === 'final_skill' ? '优化完成，可查看并下载' : e.type === 'skill' ? '已生成基础任务结构' : '已更新执行指令与约束'}</h3><p class="event-summary">${escape(e.summary || `${e.content.length} 字符 · ${e.type === 'skill' ? '初始版本' : '保留完整版本内容'}`)}</p><button class="event-action" data-version="${escape(e.id)}">查看此版本 <span>→</span></button>`}</div></article>`).join('') : `<div class="empty-state"><p>${events.length ? '当前标签下还没有输出' : '正在等待服务返回第一条信息…'}</p></div>`;
   $('event-count').textContent = events.length;
   if (nearBottom) box.scrollTop = box.scrollHeight;
 }
@@ -81,6 +88,7 @@ function receive(event) {
   if (event.content != null && typeof event.content !== 'string') throw new Error('事件 content 必须为字符串。');
   if (event.delta != null && typeof event.delta !== 'string') throw new Error('事件 delta 必须为字符串。');
   if (event.delta != null && !event.id) throw new Error('增量事件必须提供稳定的 id。');
+  if (event.type === 'optimize_step' && !Array.isArray(event.steps)) throw new Error('optimize_step 事件必须包含 steps 数组。');
   const id = String(event.id || `${event.type}-${events.length}`);
   let entry = events.find(e => e.id === id);
   const follow = !selectedVersion || selectedVersion === events.filter(isSkill).at(-1)?.id;
@@ -93,10 +101,14 @@ function receive(event) {
     if (follow) selectedVersion = events.filter(isSkill).at(-1).id;
     renderPreview();
   }
-  status(event.type === 'execution_trace' ? '执行中' : phaseLabel, 'running');
-  const stage = event.type === 'strategy' ? 'optimized_skill' : event.type;
-  let passed = true;
-  document.querySelectorAll('[data-stage]').forEach(el => { el.classList.toggle('current', el.dataset.stage === stage); el.classList.toggle('done', passed && el.dataset.stage !== stage); if (el.dataset.stage === stage) passed = false; });
+  const running = event.type === 'optimize_step' ? event.steps.find(s => s.status === 'running') : null;
+  status(running ? `优化中 · ${running.title}（${running.step}/${event.steps.length}）` : event.type === 'execution_trace' ? '执行中' : phaseLabel, 'running');
+  // 只有落在阶段条上的事件才推进显示；子图、执行轨迹等不改变当前阶段。
+  const stage = { skill: 'skill', optimized_skill: 'optimized_skill', strategy: 'optimized_skill', optimize_step: 'optimized_skill', final_skill: 'final' }[event.type];
+  if (stage) {
+    let passed = true;
+    document.querySelectorAll('[data-stage]').forEach(el => { el.classList.toggle('current', el.dataset.stage === stage); el.classList.toggle('done', passed && el.dataset.stage !== stage); if (el.dataset.stage === stage) passed = false; });
+  }
   renderTimeline();
 }
 function status(text, className = '') { $('run-status').textContent = text; $('run-status').className = `status ${className}`; }
@@ -133,7 +145,9 @@ async function watch(stream, token, started, persistent, label = '生成中') {
     let done;
     for await (const event of stream) {
       if (token !== view) return;
-      if (event.type === 'done') { done = event; break; }
+      // 历史里每一轮结束都有 done 事件，不能提前退出；流自然结束才算执行完毕。
+      if (event.seq != null && event.seq > lastSeq) lastSeq = event.seq;
+      if (event.type === 'done') { done = event; continue; }
       receive(event);
     }
     if (token !== view) return;
@@ -184,7 +198,7 @@ async function openSession(id) {
     if (token !== view) return;
     currentSession = session; sessionConfig = runConfig; $('intent').value = session.intent; count();
     document.querySelectorAll('[data-session]').forEach(el => { el.classList.toggle('active', el.dataset.session === id); el.setAttribute('aria-current', String(el.dataset.session === id)); });
-    await watch(sessionEvents(runConfig, id, controller.signal), token, Date.parse(session.created_at), true);
+    await watch(sessionEvents(runConfig, id, controller.signal), token, Date.parse(session.created_at), true, session.phase === 'optimize' ? '优化中' : '生成中');
   } catch (error) { if (token === view) { showError(error); busy(false); } }
 }
 async function refreshHistory(openLatest = false) {
