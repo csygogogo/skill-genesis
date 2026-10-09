@@ -2,6 +2,8 @@
 import asyncio
 import inspect
 
+from mock_optimizer import optimize as run_mock_optimize
+
 
 # ====== 接入区：把你的两个函数放在这里 ======
 
@@ -22,32 +24,16 @@ OPTIMIZE_STEPS = (
 
 
 async def optimize_skill(intent: str, skill: str, round_number: int):
-    """点击「优化 Skill」时调用：逐阶段 yield 进度，最后 yield 优化后的完整 Markdown。
+    """点击「优化 Skill」时调用：当前接入 mock_optimizer 的演练流程，逐阶段 yield 进度。
 
-    进度格式：{"step": 1, "status": "running" 或 "completed", "content": "可选说明文本"}
-    step 对应 OPTIMIZE_STEPS 的序号；每个阶段开始时 yield running，结束时再 yield completed。
-    全部阶段结束后，再 yield 优化后的完整 Markdown 字符串（字符串，不是字典）。
+    mock 流程（mock_optimizer/ 文件夹）：故障注入 → 发送请求给 Agent →
+    故障分析（Agent 加载 Skill 产出执行轨迹与缺口）→ 编辑并返回优化后的 Skill。
+    接入真实环境时，替换 mock_optimizer 内各模块的实现，或把下面的委托换成真实调用。
+    进度契约不变：yield {"step", "status", "content"}，最后 yield 优化后的完整 Markdown 字符串。
     也兼容旧式接入：不 yield 进度，直接返回完整 Markdown 字符串的普通函数 / 协程。
     """
-    yield {"step": 1, "status": "running", "content": "正在实际网络环境中注入故障…"}
-    await asyncio.sleep(2.0)  # 示例延迟：接入真实的故障注入
-    fault = "已注入故障：核心交换机到接入交换机的链路丢包 30%。"
-    yield {"step": 1, "status": "completed", "content": fault}
-
-    yield {"step": 2, "status": "running", "content": "正在把故障现象发送给 Agent…"}
-    await asyncio.sleep(1.5)  # 示例延迟：接入真实的告警发送
-    yield {"step": 2, "status": "completed", "content": "已发送告警现象与网络拓扑信息。"}
-
-    yield {"step": 3, "status": "running", "content": "Agent 正在加载 Skill 做故障定位与分析…"}
-    await asyncio.sleep(3.0)  # 示例延迟：接入真实的 Agent 执行
-    trace = "执行轨迹：读取告警 → 检查链路状态 → 定位丢包端口 ge-0/0/1。"
-    yield {"step": 3, "status": "completed", "content": trace}
-
-    yield {"step": 4, "status": "running", "content": "正在根据执行轨迹编辑优化 Skill…"}
-    await asyncio.sleep(1.5)  # 示例延迟：接入真实的 Skill 编辑
-    yield {"step": 4, "status": "completed"}
-
-    yield skill + f"\n\n## 第 {round_number} 轮优化\n- 验证故障：{fault}\n- {trace}\n- 根据执行轨迹补充失败场景与交付要求。"
+    async for progress in run_mock_optimize(intent, skill, round_number):
+        yield progress
 
 
 # ====== 以下是接入界面的包装代码，一般无需修改 ======
