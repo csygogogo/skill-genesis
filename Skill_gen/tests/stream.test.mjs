@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readSSE, generateFromAPI } from '../src/stream.js';
+import { readSSE, generateFromAPI } from '../web/src/stream.js';
 const encoder = new TextEncoder();
 function stream(bytes, size = 1) { return new ReadableStream({ start(c) { for (let i = 0; i < bytes.length; i += size) c.enqueue(bytes.slice(i, i + size)); c.close(); } }); }
 async function collect(body) { const events = []; for await (const e of readSSE(body)) events.push(e); return events; }

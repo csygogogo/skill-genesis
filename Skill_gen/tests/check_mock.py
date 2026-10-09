@@ -5,8 +5,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import mock_optimizer
-from mock_optimizer import agent, editor, faults
+from net_skill import mock_optimizer
+from net_skill.mock_optimizer import agent, editor, faults
 
 BASE_SKILL = "# 网络故障定位 Skill\n\n## 步骤\n1. 收集告警。\n2. 检查链路。\n3. 输出结论。\n"
 

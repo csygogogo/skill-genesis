@@ -3,7 +3,7 @@ import asyncio
 import inspect
 import time
 
-from mock_optimizer import optimize as run_mock_optimize
+from .mock_optimizer import optimize as run_mock_optimize
 
 
 # ====== 接入区：把你的两个函数放在这里 ======

@@ -141,6 +141,6 @@ def check_api(base):
 
 
 if __name__ == "__main__":
-    check_server(["-m", "http.server", "{port}", "--bind", "127.0.0.1"], check_static)
+    check_server(["-m", "http.server", "--directory", "web", "{port}", "--bind", "127.0.0.1"], check_static)
     with tempfile.TemporaryDirectory() as directory:
         check_server(backend_args(Path(directory) / "history"), check_api)

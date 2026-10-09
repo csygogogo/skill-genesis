@@ -11,7 +11,7 @@ from fastapi import Body, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pipeline import generate_events, optimize_events
+from net_skill.pipeline import generate_events, optimize_events
 import storage
 
 tasks = {}
@@ -69,21 +69,22 @@ async def lifespan(app):
 
 
 app = FastAPI(lifespan=lifespan)
-FRONTEND_DIR = Path(__file__).resolve().parent
+# UI 界面代码在 web/，Skill 生成与优化逻辑在 net_skill/。
+WEB_DIR = Path(__file__).resolve().parent / "web"
 # 只开放前端资源，不把 history、源码和配置目录作为静态目录暴露。
-app.mount("/src", StaticFiles(directory=FRONTEND_DIR / "src"), name="frontend-src")
+app.mount("/src", StaticFiles(directory=WEB_DIR / "src"), name="frontend-src")
 
 
 @app.get("/", include_in_schema=False)
 async def frontend():
-    return FileResponse(FRONTEND_DIR / "index.html", headers={"Cache-Control": "no-store"})
+    return FileResponse(WEB_DIR / "index.html", headers={"Cache-Control": "no-store"})
 
 
 @app.get("/{asset}", include_in_schema=False)
 async def frontend_asset(asset: str):
     if asset not in ("styles.css", "config.js"):
         raise HTTPException(404, "Not found")
-    return FileResponse(FRONTEND_DIR / asset, headers={"Cache-Control": "no-store"})
+    return FileResponse(WEB_DIR / asset, headers={"Cache-Control": "no-store"})
 
 
 app.add_middleware(
