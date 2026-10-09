@@ -1,0 +1,10 @@
+[
+{
+    "id": "diag_001",
+    "question": "emulation5组网中，serverleaf2设备出现vxlan异常告警和日志，请分析原因",
+    "gold_answer": "emulation5组网中serverleaf2由于出现了接口down",
+    "context": "xxxxx",
+    "inject_intent": "在组网中注入接口down的故障",
+    "inject_device": "em5_serverleaf2"
+}
+]

@@ -43,7 +43,7 @@ def check_persistence():
                 pass
         wait_for(base, session["id"], {"generated"})
         saved["content"] = download(base, session["id"])
-        assert "关闭页面后继续执行" in saved["content"]
+        assert saved["content"].lstrip().startswith(("-", "#"))
         # 创建另外 19 条独立记录并停止，确认不会覆盖、不会删除部分结果。
         for index in range(19):
             item = request(base, body={"intent": f"历史意图 {index}"})
@@ -69,7 +69,7 @@ def check_persistence():
             assert response.read() == saved["events"]
         assert request(base, "/" + saved["active"])["status"] == "interrupted"
         wait_for(base, saved["queued"], {"generated"})
-        assert "重启后继续排队" in download(base, saved["queued"])
+        assert download(base, saved["queued"]).strip()
         print("PASS: history, events and downloads survive restart; interrupted status; queued task resumes")
         # 只删除临时测试记录：覆盖完成、执行中、排队三种状态。
         running = request(base, body={"intent": "待删除的执行中测试任务"})["id"]
@@ -89,7 +89,7 @@ def check_persistence():
         time.sleep(0.5)
         assert not (history / running).exists()
         assert request(base)["total"] == 21
-        assert "重启后继续排队" in download(base, saved["queued"])
+        assert download(base, saved["queued"]).strip()
         print("PASS: delete completed/running/queued records and files; other records preserved")
 
     with tempfile.TemporaryDirectory() as directory:

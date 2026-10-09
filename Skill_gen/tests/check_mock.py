@@ -31,12 +31,18 @@ def check():
         assert fault["name"] in progresses[1]["content"], round_number
         trace = progresses[5]["content"]
         assert "受阻" in trace and fault["gap"] in trace, round_number
-        assert "恢复" in progresses[7]["content"] and fault["fix"] in progresses[7]["content"], round_number
+        assert "恢复" in progresses[7]["content"], round_number
         # 每轮把缺口补成处理指引，Skill 只增不减。
         assert f"第 {round_number} 轮优化 · {fault['name']}故障处理" in final, round_number
         skill = final
-    # 故障按轮次轮换，第五轮回到第一种。
-    assert faults.pick(5)["name"] == faults.pick(1)["name"]
+    # 故障按轮次轮换，走完一圈回到第一种。
+    assert faults.pick(len(faults.FAULTS) + 1)["name"] == faults.pick(1)["name"]
+    # 训练样本字段映射：注入意图取名、设备为范围、gold_answer 为期望根因。
+    sample = {"id": "t1", "question": "叶子交换机 vxlan 告警", "gold_answer": "接口 down",
+              "inject_intent": "在组网中注入接口down的故障", "inject_device": "em5_serverleaf2"}
+    converted = faults.from_sample(sample)
+    assert converted["name"] == "接口down" and converted["scope"] == "em5_serverleaf2"
+    assert converted["root_cause"] == "接口 down" and "接口 down" in converted["gap"]
     # 没有编号步骤的 Skill 也能完成分析并编辑。
     sparse = "# 只有描述的 Skill\n\n没有步骤。\n"
     analysis = agent.analyze(sparse, faults.FAULTS[0])

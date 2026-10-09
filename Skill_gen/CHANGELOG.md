@@ -4,6 +4,18 @@
 
 ## 2026-10-09
 
+### 新增
+
+- 接入真实数据目录：`net_skill/data/train_data.json` 训练集驱动优化轮次（`question` 现象 / `gold_answer` 期望根因 / `inject_intent`、`inject_device` 注入操作与设备，按轮轮换）；`net_skill/skills/` 下待优化 Skill 作为生成阶段 V0 读入。
+
+### 调整
+
+- 生成阶段不再按意图拼占位 Skill，优先读取 `skills/` 第一个目录的 `SKILL.md`；无待优化 Skill 时回退占位。
+- 训练集缺失 / 格式错误 / 为空时，故障库回退内置 4 种场景；样本无 `fix` 字段时恢复阶段按注入操作撤销、编辑阶段使用通用处置动作。
+- 测试不再断言「意图出现在 Skill 内容中」，改为校验 V0 结构；新增训练样本字段映射断言。
+
+## 2026-10-09 · d8b632b
+
 ### 调整
 
 - 目录重构：UI 界面代码移入 `web/`；新增 `net_skill/` 与 `web/` 同级，存放 Skill 生成与优化逻辑（`pipeline.py`、`mock_optimizer/`）。`app.py` 仍是服务入口，启动命令与页面行为不变。

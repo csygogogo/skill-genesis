@@ -94,7 +94,8 @@ def check_api(base):
         assert response.headers["Content-Type"].startswith("text/event-stream")
         assert response.headers["Access-Control-Allow-Origin"] == "http://127.0.0.1:5173"
         events = [json.loads(line[6:]) for line in response.read().decode().splitlines() if line.startswith("data: ")]
-    assert events[0]["type"] == "skill" and intent in events[0]["content"]
+    # V0 来自 net_skill/skills/ 的待优化 Skill（YAML frontmatter 或标题开头），不再由意图拼接。
+    assert events[0]["type"] == "skill" and events[0]["content"].lstrip().startswith(("-", "#"))
     assert events[-1]["type"] == "done" and events[-1]["status"] == "generated"
     for body in ({}, {"intent": ""}, {"intent": "x" * 8001}, {"intent": []}):
         invalid = Request(endpoint, json.dumps(body).encode(), {"Content-Type": "application/json"})

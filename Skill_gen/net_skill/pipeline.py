@@ -2,15 +2,27 @@
 import asyncio
 import inspect
 import time
+from pathlib import Path
 
 from .mock_optimizer import optimize as run_mock_optimize
+
+# skills/ 下放待优化的 Skill；data/ 下放训练集，见 mock_optimizer/faults.py。
+SKILLS_DIR = Path(__file__).resolve().parent / "skills"
 
 
 # ====== 接入区：把你的两个函数放在这里 ======
 
 async def generate_skill(intent: str) -> str:
-    """点击「生成 Skill」时调用：根据意图生成初始 Skill，返回完整 Markdown 字符串。"""
-    await asyncio.sleep(1.5)  # 示例延迟，接入时可删除
+    """点击「生成 Skill」时调用：读取 skills/ 下待优化的 Skill 作为初始版本 V0。
+
+    当前取 skills/ 中第一个目录的 SKILL.md（按目录名排序；之后可按 intent 匹配）。
+    没有待优化 Skill 时，回退为按意图生成的占位版本。
+    """
+    # 模拟准备 V0 的耗时，保证生成阶段有可见的运行窗口；接入真实实现时随逻辑自然产生。
+    await asyncio.sleep(1.5)
+    for path in sorted(SKILLS_DIR.glob("*/SKILL.md")):
+        if path.is_file():
+            return path.read_text(encoding="utf-8")
     return f"# 自生成 Skill\n\n## 目标\n{intent}\n\n## 步骤\n1. 分析输入。\n2. 执行任务。\n3. 输出结果。"
 
 

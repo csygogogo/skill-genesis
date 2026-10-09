@@ -1,9 +1,9 @@
 """skill 优化的 mock 演练流程：故障注入 → 发送请求 → 故障分析 → 故障恢复 → 编辑并返回优化后的 Skill。
 
-每轮从 faults.FAULTS 轮换一种故障：注入后把现象发给 Agent，Agent 加载当前 Skill
-做定位分析并暴露缺口；恢复故障让环境回到基线，再由 editor 把缺口补成处理指引，
-最后返回优化后的完整 Markdown。
-接入真实环境时，替换本包内各模块的实现即可，pipeline.py 的进度契约保持不变。
+每轮从故障库轮换一种故障（faults.py 优先加载 net_skill/data/train_data.json 训练集，
+缺失时回退内置场景）：注入后把现象发给 Agent，Agent 加载当前 Skill 做定位分析并
+暴露缺口；恢复故障让环境回到基线，再由 editor 把缺口补成处理指引，最后返回优化后的
+完整 Markdown。接入真实环境时，替换本包内各模块的实现即可，契约保持不变。
 """
 import asyncio
 

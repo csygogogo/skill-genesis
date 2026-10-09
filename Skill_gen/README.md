@@ -20,7 +20,7 @@ pip install --no-compile -r requirements.txt
 
 在 `net_skill/pipeline.py` 顶部的接入区替换两个函数（同步或 `async` 均可，返回完整 Markdown 字符串）：
 
-- `generate_skill(intent)` — 点击「生成 Skill」时调用，产出初始版本 V0。
+- `generate_skill(intent)` — 点击「生成 Skill」时调用：读取 `net_skill/skills/` 下待优化 Skill 的 `SKILL.md` 作为初始版本 V0（当前取第一个目录）；没有待优化 Skill 时按意图生成占位版本。
 - `optimize_skill(intent, skill, round_number)` — 点击「优化 Skill」时调用；`skill` 是当前最新版本内容，`round_number` 从 1 开始，每点击一次加一。
   - 逐阶段写法（推荐）：改成生成器，按 `OPTIMIZE_STEPS` 的序号逐阶段 `yield {"step": 1, "status": "running", "content": "可选说明"}`，每个阶段先 running、结束时再 completed；界面会实时显示各阶段进度（优化中…），全部结束后再 `yield` 优化后的完整 Markdown 字符串。
   - 整体写法：普通函数 / 协程直接返回完整 Markdown，界面只显示「优化中」，完成后展示新版本。
@@ -28,7 +28,7 @@ pip install --no-compile -r requirements.txt
 ## 文件
 
 - `web/`：UI 界面代码（`index.html`、`styles.css`、`config.js`、`src/`）。
-- `net_skill/`：Skill 生成与优化逻辑，与 `web/` 同级；`pipeline.py` 是接入入口，`mock_optimizer/` 是当前接入的演练流程（故障注入 → 发送请求 → 故障分析 → 故障恢复 → 编辑并返回），每轮轮换一种网络故障。
+- `net_skill/`：Skill 生成与优化逻辑，与 `web/` 同级；`pipeline.py` 是接入入口，`mock_optimizer/` 是当前接入的演练流程（故障注入 → 发送请求 → 故障分析 → 故障恢复 → 编辑并返回）。`data/train_data.json` 是训练集（`question` 故障现象、`gold_answer` 期望根因、`inject_intent` / `inject_device` 注入操作与设备），优化轮次按轮换使用；`skills/` 下放待优化的 Skill（生成阶段作为 V0 读入）。
 - `app.py`：FastAPI 服务入口，托管 `web/` 界面并调用 `net_skill/` 的逻辑；`storage.py` 是历史记录存储。
 - `CHANGELOG.md`：每次修改的更新日志。
 - `history/`：每次生成一个文件夹，保存意图、事件流和各版本 `.md`。
