@@ -11,7 +11,8 @@ from fastapi import Body, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from net_skill.pipeline import generate_events, optimize_events
+from net_skill.pipeline import catalog as skill_catalog, generate_events, optimize_events
+from net_skill.pipeline import resolve_skill
 import storage
 
 tasks = {}
@@ -24,7 +25,7 @@ def plan_events(session):
         if latest is None:
             raise RuntimeError("No skill version available to optimize")
         return optimize_events(session["intent"], latest["content"], session["round"])
-    return generate_events(session["intent"])
+    return generate_events(session["intent"], session.get("skill", ""))
 
 
 async def run_session(session):
@@ -101,11 +102,18 @@ def require_session(session_id):
     return session
 
 
+@app.get("/api/skills/catalog", include_in_schema=False)
+async def list_skill_catalog():
+    # skills/ 下可被选择用于生成的待优化 Skill；无效选择由 resolve_skill 回退。
+    return skill_catalog()
+
+
 @app.post("/api/skills/sessions", status_code=201)
-async def create_session(intent: str = Body(embed=True, min_length=1, max_length=8000)):
+async def create_session(intent: str = Body(embed=True, min_length=1, max_length=8000),
+                         skill: str = Body(default="", embed=True, max_length=200)):
     if not intent.strip():
         raise HTTPException(422, "Intent must not be blank")
-    return storage.create(intent.strip())
+    return storage.create(intent.strip(), resolve_skill(skill))
 
 
 @app.get("/api/skills/sessions")
@@ -186,8 +194,9 @@ async def delete_session(session_id: str):
 
 # 保留旧 POST SSE 接口；断开此连接同样不会取消任务。
 @app.post("/api/skills/generate")
-async def generate(request: Request, intent: str = Body(embed=True, min_length=1, max_length=8000)):
-    session = await create_session(intent)
+async def generate(request: Request, intent: str = Body(embed=True, min_length=1, max_length=8000),
+                   skill: str = Body(default="", embed=True, max_length=200)):
+    session = await create_session(intent, skill)
     return await stream_session(session["id"], request, 0)
 
 

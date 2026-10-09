@@ -48,9 +48,9 @@ def listing(limit=50, offset=0):
     return {"items": sessions[offset:offset + limit], "total": len(sessions)}
 
 
-def create(intent):
+def create(intent, skill_id=""):
     session = {
-        "id": uuid4().hex, "intent": intent, "status": "queued",
+        "id": uuid4().hex, "intent": intent, "skill": skill_id, "status": "queued",
         "phase": "generate", "round": 0, "created_at": now(), "updated_at": now(),
     }
     (folder(session["id"]) / "skills").mkdir(parents=True)

@@ -6,6 +6,16 @@
 
 ### 新增
 
+- 界面支持选择待优化 Skill：`GET /api/skills/catalog` 列出 `skills/` 目录（frontmatter 的 name/description）；创建会话可带 `skill` 参数并记录在 session 中；意图面板新增下拉选择器，默认选最近生成用过的 Skill，打开历史记录时同步。
+
+### 调整
+
+- `generate_skill(intent, skill_id)` 支持指定 Skill 目录；未指定或不存在时回退第一个。
+
+## 2026-10-09 · 3eb316b
+
+### 新增
+
 - 接入真实数据目录：`net_skill/data/train_data.json` 训练集驱动优化轮次（`question` 现象 / `gold_answer` 期望根因 / `inject_intent`、`inject_device` 注入操作与设备，按轮轮换）；`net_skill/skills/` 下待优化 Skill 作为生成阶段 V0 读入。
 
 ### 调整

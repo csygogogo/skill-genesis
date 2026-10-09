@@ -7,6 +7,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from net_skill import mock_optimizer
 from net_skill.mock_optimizer import agent, editor, faults
+from net_skill.pipeline import catalog, generate_events, resolve_skill
 
 BASE_SKILL = "# 网络故障定位 Skill\n\n## 步骤\n1. 收集告警。\n2. 检查链路。\n3. 输出结论。\n"
 
@@ -48,7 +49,21 @@ def check():
     analysis = agent.analyze(sparse, faults.FAULTS[0])
     assert "0 个步骤" in analysis["trace"]
     assert sparse in editor.revise(sparse, 1, faults.FAULTS[0], analysis)
-    print("PASS: mock optimizer rotates faults, per-step progress, trace exposes gap, skill grows each round")
+    # Skill 目录：frontmatter 解析出名称与描述，选择解析支持命中与回退。
+    items = catalog()["items"]
+    assert items and items[0]["id"], "skills/ 下应至少有一个待优化 Skill"
+    first = next(item for item in items if item["id"] == "network-fault-diag")
+    assert first["name"] == "network-fault-diag" and "网络故障" in first["description"]
+    assert resolve_skill("network-fault-diag") == "network-fault-diag"
+    assert resolve_skill("no-such-skill") == items[0]["id"] and resolve_skill("") == items[0]["id"]
+
+    async def first_event():
+        async for event in generate_events("意图", "network-fault-diag"):
+            return event
+
+    seed = asyncio.run(first_event())
+    assert seed["type"] == "skill" and "network-fault-diag" in seed["content"]
+    print("PASS: mock optimizer rotates faults, per-step progress, trace exposes gap, skill grows each round; skill catalog resolves")
 
 
 if __name__ == "__main__":

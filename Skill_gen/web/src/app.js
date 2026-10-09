@@ -1,4 +1,4 @@
-import { api, sessionEvents } from './api.js';
+import { api, sessionEvents, skillCatalog } from './api.js';
 import { generateDemo } from './demo.js';
 const $ = (id) => document.getElementById(id);
 const defaults = window.SKILL_STUDIO_CONFIG || {};
@@ -12,6 +12,7 @@ try {
 let config = { ...defaults, mode: saved.mode || defaults.mode || 'api', endpoint: saved.endpoint || defaults.endpoint };
 let events = [], selectedVersion = '', filter = 'all', running = false, controller, lastSeq = 0, phaseLabel = '生成中';
 let toastTimer, currentSession = null, sessionConfig = null, view = 0, historyLimit = 50, historyRequest = 0, pendingDelete = null;
+let skillChoices = [], selectedSkill = '';
 const sessionLabels = { queued: '排队中', running: '生成中', generated: '已生成', completed: '已完成', failed: '失败', stopped: '已停止', interrupted: '已中断', deleted: '已删除' };
 const labels = { subgraph: '子图信息', skill: '初始 Skill', optimized_skill: '优化后的 Skill', strategy: '调整策略', execution_trace: '执行轨迹', optimize_step: '优化进度', final_skill: '最终 Skill' };
 const isSkill = (event) => ['skill', 'optimized_skill', 'final_skill'].includes(event.type);
@@ -20,6 +21,22 @@ const escape = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', 
 const versionLabel = (v) => v.type === 'skill' ? 'V0 · 初始版本' : v.type === 'final_skill' ? `最终版本 · 第 ${v.round ?? '—'} 轮` : `V${v.round ?? '—'} · 第 ${v.round ?? '—'} 轮优化`;
 function toast(text) { $('toast').textContent = text; $('toast').hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => $('toast').hidden = true, 2600); }
 function connection() { $('connection-label').innerHTML = `${config.mode === 'demo' ? '演示模式' : 'API 模式'}<small>${config.mode === 'demo' ? '仅临时预览，不保存' : 'FastAPI · 后端持久记录'}</small>`; }
+// 待优化 Skill 选择：目录来自后端；默认选上次用过的（即最近生成的那个 Skill）。
+function persistSkill(id) { try { localStorage.setItem('skill-studio-skill', id); } catch {} }
+function useSkill(id) {
+  if (!skillChoices.some(item => item.id === id)) return;
+  selectedSkill = id; $('skill-select').value = id; persistSkill(id);
+}
+async function loadSkills() {
+  if (config.mode === 'demo') { $('skill-picker').hidden = true; return; }
+  try { skillChoices = (await skillCatalog({ ...config })).items || []; }
+  catch { skillChoices = []; }
+  $('skill-picker').hidden = !skillChoices.length;
+  if (!skillChoices.length) return;
+  $('skill-select').innerHTML = skillChoices.map(s => `<option value="${escape(s.id)}">${escape(s.name || s.id)}${s.description ? ` · ${escape(s.description.slice(0, 26))}` : ''}</option>`).join('');
+  let saved = ''; try { saved = localStorage.getItem('skill-studio-skill') || ''; } catch {}
+  useSkill(skillChoices.some(item => item.id === saved) ? saved : skillChoices[0].id);
+}
 function markdown(text) {
   // 仅渲染安全子集；后端 HTML 一律转义，不接受脚本、图片或链接。
   const lines = text.split('\n');
@@ -113,7 +130,7 @@ function receive(event) {
   renderTimeline();
 }
 function status(text, className = '') { $('run-status').textContent = text; $('run-status').className = `status ${className}`; }
-function busy(value) { running = value; $('generate').hidden = value; $('stop').hidden = !value; $('intent').disabled = value; $('try-demo')?.toggleAttribute('disabled', value); document.querySelectorAll('[data-prompt]').forEach(b => b.disabled = value); updateOptimize(); }
+function busy(value) { running = value; $('generate').hidden = value; $('stop').hidden = !value; $('intent').disabled = value; $('skill-select').disabled = value; $('try-demo')?.toggleAttribute('disabled', value); document.querySelectorAll('[data-prompt]').forEach(b => b.disabled = value); updateOptimize(); }
 // 优化按钮：API 模式下，当前会话已有 Skill 版本且不在排队/执行时可用；演示模式不支持。
 function canOptimize() {
   return config.mode === 'api' && currentSession && !running
@@ -184,9 +201,11 @@ async function generate(forceDemo = false) {
   if (runConfig.mode === 'demo') { await watch(generateDemo(intent, controller.signal), token, Date.now(), false); return; }
   try {
     status('正在保存', 'running'); $('stop').disabled = true;
-    const session = await (await api(runConfig, '', { method: 'POST', body: JSON.stringify({ intent }), signal: controller.signal })).json();
+    const session = await (await api(runConfig, '', { method: 'POST', body: JSON.stringify({ intent, skill: selectedSkill }), signal: controller.signal })).json();
     if (token !== view) return;
-    currentSession = session; sessionConfig = runConfig; refreshHistory();
+    currentSession = session; sessionConfig = runConfig;
+    if (session.skill) useSkill(session.skill);
+    refreshHistory();
     await watch(sessionEvents(runConfig, session.id, controller.signal), token, Date.parse(session.created_at), true);
   } catch (error) {
     if (token === view) { busy(false); status('提交异常', 'error'); showError(error); refreshHistory(); }
@@ -198,6 +217,7 @@ async function openSession(id) {
     const session = await (await api(runConfig, `/${encodeURIComponent(id)}`, { signal: controller.signal })).json();
     if (token !== view) return;
     currentSession = session; sessionConfig = runConfig; $('intent').value = session.intent; count();
+    if (session.skill) useSkill(session.skill);
     document.querySelectorAll('[data-session]').forEach(el => { el.classList.toggle('active', el.dataset.session === id); el.setAttribute('aria-current', String(el.dataset.session === id)); });
     await watch(sessionEvents(runConfig, id, controller.signal), token, Date.parse(session.created_at), true, session.phase === 'optimize' ? '优化中' : '生成中');
   } catch (error) { if (token === view) { showError(error); busy(false); } }
@@ -314,8 +334,10 @@ $('settings-form').addEventListener('submit', e => {
   if ($('mode').value === 'api') { try { const url = new URL(endpoint, location.href); if (!['http:', 'https:'].includes(url.protocol) || !endpoint || url.username || url.password) throw new Error(); } catch { toast('请输入有效的 HTTP / HTTPS 地址或相对接口路径'); return; } }
   config = { ...config, mode: $('mode').value, endpoint };
   let stored = true; try { localStorage.setItem('skill-studio-settings', JSON.stringify({ mode: config.mode, endpoint })); } catch { stored = false; }
-  connection(); refreshHistory(); $('settings').close(); toast(!stored ? '设置已应用，浏览器不允许持久保存' : running ? '设置已保存，将在下次生成时生效' : '连接设置已保存');
+  connection(); refreshHistory(); loadSkills(); $('settings').close(); toast(!stored ? '设置已应用，浏览器不允许持久保存' : running ? '设置已保存，将在下次生成时生效' : '连接设置已保存');
 });
+$('skill-select').addEventListener('change', e => useSkill(e.target.value));
 connection();
 refreshHistory(true);
+loadSkills();
 setInterval(() => { if (!document.hidden) refreshHistory(); }, 5000);

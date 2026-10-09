@@ -34,6 +34,7 @@
       </details>
       <section class="intent-panel" aria-labelledby="intent-title">
         <div class="section-title"><h2 id="intent-title"><span class="purple-icon">✧</span> 你想生成什么 Skill？</h2><span class="muted small">从一个明确的意图开始</span></div>
+        <div class="skill-picker" id="skill-picker" hidden><label for="skill-select">待优化 Skill</label><select id="skill-select"></select><small>V0 从选中的 Skill 读入</small></div>
         <form id="intent-form"><label class="sr-only" for="intent">Skill 生成意图</label><textarea id="intent" rows="3" maxlength="8000" placeholder="例如：生成一个分析用户反馈的 Skill，自动归类问题、识别高频需求，并输出可执行的产品优化建议。" required></textarea><div class="input-footer"><span class="input-hint"><kbd>Ctrl</kbd> + <kbd>Enter</kbd> 开始生成 <span id="char-count">0 / 8000</span></span><div class="intent-actions"><button class="secondary-button" id="optimize" type="button" disabled title="先生成 Skill，之后每点击一次优化一轮">↻ 优化 Skill</button><button class="primary-button" id="generate" type="submit"><span>✧</span> 生成 Skill <span>↗</span></button><button class="stop-button" id="stop" type="button" hidden>■ 停止生成</button></div></div></form>
         <div class="suggestions"><span>试试这些</span><button type="button" data-prompt="生成一个分析用户反馈的 Skill，自动归类问题、识别高频需求，并输出可执行的产品优化建议。">用户反馈分析 <span>↗</span></button><button type="button" data-prompt="生成一个技术文档编写 Skill，根据代码与接口信息，输出结构清晰、包含使用示例的开发文档。">技术文档编写 <span>↗</span></button><button type="button" data-prompt="生成一个数据质量检查 Skill，检测缺失值、异常值与重复记录，并输出问题摘要和修复建议。">数据质量检查 <span>↗</span></button></div>
       </section>

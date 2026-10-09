@@ -107,10 +107,20 @@ def check_api(base):
         else:
             raise AssertionError(f"Expected 422 for {body}")
 
+    # Skill 目录：列出 skills/ 下待优化 Skill；创建会话绑定选中的 Skill，无效选择回退第一个。
+    with urlopen(base + "/api/skills/catalog") as response:
+        catalog = json.load(response)
+    assert any(item["id"] == "network-fault-diag" and "网络故障" in item.get("description", "")
+               for item in catalog["items"]), catalog
+    fallback = Request(base + "/api/skills/sessions", json.dumps({"intent": intent, "skill": "no-such-skill"}).encode(), {"Content-Type": "application/json"})
+    with urlopen(fallback) as response:
+        assert json.load(response)["skill"] == "network-fault-diag"
     # 分步流程：生成结束后可反复点击优化，每轮基于上一版本。
-    created = Request(base + "/api/skills/sessions", json.dumps({"intent": intent}).encode(), {"Content-Type": "application/json"})
+    created = Request(base + "/api/skills/sessions", json.dumps({"intent": intent, "skill": "network-fault-diag"}).encode(), {"Content-Type": "application/json"})
     with urlopen(created) as response:
-        session_id = json.load(response)["id"]
+        created_session = json.load(response)
+    session_id = created_session["id"]
+    assert created_session["skill"] == "network-fault-diag"
     wait_for_status(base, session_id, "generated")
     skill_0 = next(e for e in session_events(base, session_id) if e.get("id") == "skill-0")
     previous = skill_0["content"]

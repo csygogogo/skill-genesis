@@ -10,19 +10,57 @@ from .mock_optimizer import optimize as run_mock_optimize
 SKILLS_DIR = Path(__file__).resolve().parent / "skills"
 
 
+def parse_frontmatter(text: str) -> dict:
+    """读取 SKILL.md 顶部 frontmatter 的 name / description（简单 key: value 子集）。"""
+    meta, lines = {}, text.splitlines()
+    if not lines or lines[0].strip() != "---":
+        return meta
+    for line in lines[1:]:
+        if line.strip() == "---":
+            break
+        key, separator, value = line.partition(":")
+        if separator:
+            meta[key.strip()] = value.strip()
+    return meta
+
+
+def catalog() -> dict:
+    """列出 skills/ 下可用的待优化 Skill，供界面选择。"""
+    items = []
+    for path in sorted(SKILLS_DIR.glob("*/SKILL.md")):
+        if not path.is_file():
+            continue
+        meta = parse_frontmatter(path.read_text(encoding="utf-8"))
+        items.append({
+            "id": path.parent.name,
+            "name": meta.get("name") or path.parent.name,
+            "description": meta.get("description", ""),
+        })
+    return {"items": items}
+
+
+def resolve_skill(skill_id: str = "") -> str:
+    """把界面选择的 Skill 目录名解析为实际使用的目录名；无效回退第一个，无 Skill 返回空串。"""
+    paths = sorted(path for path in SKILLS_DIR.glob("*/SKILL.md") if path.is_file())
+    for path in paths:
+        if path.parent.name == skill_id:
+            return skill_id
+    return paths[0].parent.name if paths else ""
+
+
 # ====== 接入区：把你的两个函数放在这里 ======
 
-async def generate_skill(intent: str) -> str:
-    """点击「生成 Skill」时调用：读取 skills/ 下待优化的 Skill 作为初始版本 V0。
+async def generate_skill(intent: str, skill_id: str = "") -> str:
+    """点击「生成 Skill」时调用：读取 skills/ 下指定的待优化 Skill 作为初始版本 V0。
 
-    当前取 skills/ 中第一个目录的 SKILL.md（按目录名排序；之后可按 intent 匹配）。
-    没有待优化 Skill 时，回退为按意图生成的占位版本。
+    skill_id 是界面选择的 Skill 目录名；为空或不存在时取第一个，skills/ 为空时
+    回退为按意图生成的占位版本。
     """
     # 模拟准备 V0 的耗时，保证生成阶段有可见的运行窗口；接入真实实现时随逻辑自然产生。
     await asyncio.sleep(1.5)
-    for path in sorted(SKILLS_DIR.glob("*/SKILL.md")):
-        if path.is_file():
-            return path.read_text(encoding="utf-8")
+    chosen = resolve_skill(skill_id)
+    if chosen:
+        return (SKILLS_DIR / chosen / "SKILL.md").read_text(encoding="utf-8")
     return f"# 自生成 Skill\n\n## 目标\n{intent}\n\n## 步骤\n1. 分析输入。\n2. 执行任务。\n3. 输出结果。"
 
 
@@ -61,8 +99,8 @@ async def call(function, *args):
     return result
 
 
-async def generate_events(intent: str):
-    skill = await call(generate_skill, intent)
+async def generate_events(intent: str, skill_id: str = ""):
+    skill = await call(generate_skill, intent, skill_id)
     yield {"type": "skill", "id": "skill-0", "round": 0, "content": skill}
 
 
