@@ -1,6 +1,7 @@
 """接入你的 Skill 生成与优化函数；界面分两步调用：生成 → 逐轮优化。"""
 import asyncio
 import inspect
+import time
 
 from mock_optimizer import optimize as run_mock_optimize
 
@@ -52,15 +53,28 @@ async def generate_events(intent: str):
     yield {"type": "skill", "id": "skill-0", "round": 0, "content": skill}
 
 
-def apply_progress(states, progress):
+def apply_progress(states, progress, started):
     # progress：{"step": 序号, "status": running/completed, "content": 可选说明}。
     if not isinstance(progress, dict) or not isinstance(progress.get("step"), int):
         raise RuntimeError("optimize_skill yield 的进度必须是包含 step 序号的字典")
     for state in states:
-        if state["step"] == progress["step"]:
-            state["status"] = progress["status"] if progress.get("status") in ("running", "completed") else "running"
-            if progress.get("content"):
-                state["content"] = str(progress["content"])
+        if state["step"] != progress["step"]:
+            continue
+        state["status"] = progress["status"] if progress.get("status") in ("running", "completed") else "running"
+        if progress.get("content"):
+            state["content"] = str(progress["content"])
+        # 阶段真实耗时：running 起表，completed 时结算写入 elapsed（秒）。
+        if state["status"] == "running" and state["step"] not in started:
+            started[state["step"]] = time.monotonic()
+        elif state["status"] == "completed" and state["step"] in started:
+            state["elapsed"] = round(time.monotonic() - started.pop(state["step"]), 1)
+
+
+def settle_elapsed(states, started, status):
+    # 中断收尾：把还挂着计时的阶段结算出已耗时间。
+    for state in states:
+        if state["status"] == status and state["step"] in started:
+            state["elapsed"] = round(time.monotonic() - started.pop(state["step"]), 1)
 
 
 async def optimize_events(intent: str, skill: str, round_number: int):
@@ -73,9 +87,10 @@ async def optimize_events(intent: str, skill: str, round_number: int):
         yield {"type": "optimized_skill", "id": f"skill-{round_number}", "round": round_number, "content": optimized}
         return
 
-    # 五个阶段的实时状态：pending / running / completed / failed，前端渲染成进度清单。
+    # 五个阶段的实时状态：pending / running / completed / failed（完成后附耗时 elapsed），前端渲染成进度清单。
     states = [{"step": index, "title": title, "status": "pending", "content": ""}
               for index, title in enumerate(OPTIMIZE_STEPS, start=1)]
+    started = {}
 
     def snapshot():
         return {"type": "optimize_step", "id": f"optimize-{round_number}", "round": round_number, "steps": states}
@@ -91,10 +106,11 @@ async def optimize_events(intent: str, skill: str, round_number: int):
             if isinstance(progress, str):
                 optimized = progress  # 收尾：yield 字符串即优化后的完整 Markdown。
                 break
-            apply_progress(states, progress)
+            apply_progress(states, progress, started)
             yield snapshot()
     except Exception:
-        # 中途失败：把执行中的阶段标记为 failed，再交给上层记录 error 事件。
+        # 中途失败：结算耗时并把执行中的阶段标记为 failed，再交给上层记录 error 事件。
+        settle_elapsed(states, started, "running")
         for state in states:
             if state["status"] == "running":
                 state["status"] = "failed"

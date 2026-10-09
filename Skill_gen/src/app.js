@@ -55,11 +55,12 @@ function traceCard(event) {
   return `<h3>${escape(event.title || 'Skill 执行记录')} <span class="trace-status">${state[event.status] || '执行记录'}</span></h3><p class="event-summary">${escape(event.content || '等待执行输出…')}</p>${skill ? `<button class="event-action" data-version="${escape(skill.id)}">查看执行的 Skill · ${escape(versionLabel(skill))} →</button>` : ''}`;
 }
 function stepChecklist(event) {
-  // 优化阶段的实时清单：等待 ○ / 优化中 spinner / 完成 ✓ / 失败 ×。
+  // 优化阶段的实时清单：等待 ○ / 优化中 spinner / 完成 ✓ / 失败 ×；完成后显示该阶段耗时。
   const words = { pending: '等待中', running: '优化中…', completed: '已完成', failed: '失败' };
   const marks = { completed: '✓', failed: '×' };
+  const spent = (s) => s.elapsed != null ? ` · ${escape(s.elapsed)} 秒` : '';
   const steps = event.steps || [];
-  return `<h3>本轮优化流程 <span class="trace-status">${steps.filter(s => s.status === 'completed').length}/${steps.length} 阶段</span></h3><div class="step-list">${steps.map(s => `<div class="step-item ${escape(s.status || 'pending')}"><span class="step-mark">${s.status === 'running' ? '<span class="step-spinner"></span>' : marks[s.status] || String(s.step)}</span><div class="step-body"><div class="step-name"><span>${escape(s.step)}. ${escape(s.title || '')}</span><small>${words[s.status] || '等待中'}</small></div>${s.content ? `<p class="step-note">${escape(s.content)}</p>` : ''}</div></div>`).join('')}</div>`;
+  return `<h3>本轮优化流程 <span class="trace-status">${steps.filter(s => s.status === 'completed').length}/${steps.length} 阶段</span></h3><div class="step-list">${steps.map(s => `<div class="step-item ${escape(s.status || 'pending')}"><span class="step-mark">${s.status === 'running' ? '<span class="step-spinner"></span>' : marks[s.status] || String(s.step)}</span><div class="step-body"><div class="step-name"><span>${escape(s.step)}. ${escape(s.title || '')}</span><small>${words[s.status] || '等待中'}${spent(s)}</small></div>${s.content ? `<p class="step-note">${escape(s.content)}</p>` : ''}</div></div>`).join('')}</div>`;
 }
 function renderTimeline() {
   const box = $('timeline');

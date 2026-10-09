@@ -127,6 +127,9 @@ def check_api(base):
         assert any(step["status"] == "running" for snapshot in snapshots for step in snapshot["steps"])
         final_steps = snapshots[-1]["steps"]
         assert len(final_steps) == 5 and all(step["status"] == "completed" for step in final_steps)
+        # 四个执行阶段都带真实耗时（秒）；第 5 步是收尾交接，不单独计时。
+        assert all(isinstance(step.get("elapsed"), (int, float)) and step["elapsed"] >= 0
+                   for step in final_steps[:4]), final_steps
         optimized = next(e for e in events if e.get("id") == f"skill-{round_number}")
         assert optimized["type"] == "optimized_skill" and optimized["round"] == round_number
         assert snapshots[-1]["seq"] < optimized["seq"]
