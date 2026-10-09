@@ -48,6 +48,11 @@ def inject(fault: dict) -> str:
     return f"已在 {fault['scope']} 注入「{fault['name']}」故障：{fault['symptom']}。"
 
 
+def recover(fault: dict) -> str:
+    """第 4 步：演练结束后恢复注入的故障，环境回到基线。"""
+    return f"已恢复「{fault['name']}」故障：{fault['fix']}；{fault['scope']} 回到基线，告警清除。"
+
+
 def symptoms(fault: dict) -> dict:
     """第 2 步的请求体：把告警现象与拓扑范围整理成发给 Agent 的材料。"""
     return {

@@ -14,13 +14,14 @@ async def generate_skill(intent: str) -> str:
     return f"# 自生成 Skill\n\n## 目标\n{intent}\n\n## 步骤\n1. 分析输入。\n2. 执行任务。\n3. 输出结果。"
 
 
-# 优化流程的五个阶段，按顺序实时展示在前端；optimize_skill 按序号汇报进度。
+# 优化流程的六个阶段，按顺序实时展示在前端；optimize_skill 按序号汇报进度。
 OPTIMIZE_STEPS = (
     "注入故障",           # 1. 在实际网络环境中注入故障
     "发送故障现象",       # 2. 把故障现象发送给 Agent
     "定位与分析",         # 3. Agent 加载 Skill 做故障定位与分析
-    "编辑优化 Skill",     # 4. 根据 Agent 执行轨迹编辑优化 Skill
-    "返回优化后的 Skill", # 5. 包装代码拿到优化结果时自动标记完成
+    "故障恢复",           # 4. 演练结束，恢复注入的故障，环境回到基线
+    "编辑优化 Skill",     # 5. 根据 Agent 执行轨迹编辑优化 Skill
+    "返回优化后的 Skill", # 6. 包装代码拿到优化结果时自动标记完成
 )
 
 
@@ -28,7 +29,7 @@ async def optimize_skill(intent: str, skill: str, round_number: int):
     """点击「优化 Skill」时调用：当前接入 mock_optimizer 的演练流程，逐阶段 yield 进度。
 
     mock 流程（mock_optimizer/ 文件夹）：故障注入 → 发送请求给 Agent →
-    故障分析（Agent 加载 Skill 产出执行轨迹与缺口）→ 编辑并返回优化后的 Skill。
+    故障分析（Agent 加载 Skill 产出执行轨迹与缺口）→ 故障恢复 → 编辑并返回优化后的 Skill。
     接入真实环境时，替换 mock_optimizer 内各模块的实现，或把下面的委托换成真实调用。
     进度契约不变：yield {"step", "status", "content"}，最后 yield 优化后的完整 Markdown 字符串。
     也兼容旧式接入：不 yield 进度，直接返回完整 Markdown 字符串的普通函数 / 协程。

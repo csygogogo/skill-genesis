@@ -28,7 +28,8 @@ pip install --no-compile -r requirements.txt
 ## 文件
 
 - `pipeline.py`：接入你的 Skill 生成和优化逻辑。
-- `mock_optimizer/`：skill 优化的 mock 演练流程（故障注入 → 发送请求 → 故障分析 → 编辑并返回）；每轮轮换一种网络故障，`faults.py` / `agent.py` / `editor.py` 对应各阶段。
+- `mock_optimizer/`：skill 优化的 mock 演练流程（故障注入 → 发送请求 → 故障分析 → 故障恢复 → 编辑并返回）；每轮轮换一种网络故障，`faults.py` / `agent.py` / `editor.py` 对应各阶段。
+- `CHANGELOG.md`：每次修改的更新日志。
 - `history/`：每次生成一个文件夹，保存意图、事件流和各版本 `.md`。
 - 页面可以查看历史、切换版本、下载 Skill，以及确认后删除记录。
 
