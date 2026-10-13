@@ -4,6 +4,7 @@ import inspect
 import time
 from pathlib import Path
 
+from .mock_optimizer import faults as training_faults
 from .mock_optimizer import optimize as run_mock_optimize
 
 # skills/ 下放待优化的 Skill；data/ 下放训练集，见 mock_optimizer/faults.py。
@@ -37,6 +38,11 @@ def catalog() -> dict:
             "description": meta.get("description", ""),
         })
     return {"items": items}
+
+
+def cases() -> dict:
+    """列出 data/train_data.json 的训练用例，供界面勾选做定向优化。"""
+    return {"items": training_faults.samples()}
 
 
 def resolve_skill(skill_id: str = "") -> str:
@@ -75,16 +81,17 @@ OPTIMIZE_STEPS = (
 )
 
 
-async def optimize_skill(intent: str, skill: str, round_number: int):
+async def optimize_skill(intent: str, skill: str, round_number: int, case_ids=None):
     """点击「优化 Skill」时调用：当前接入 mock_optimizer 的演练流程，逐阶段 yield 进度。
 
     mock 流程（mock_optimizer/ 文件夹）：故障注入 → 发送请求给 Agent →
     故障分析（Agent 加载 Skill 产出执行轨迹与缺口）→ 故障恢复 → 编辑并返回优化后的 Skill。
+    case_ids 是界面勾选的训练用例 id；为空时每轮在全部用例中轮换。
     接入真实环境时，替换 mock_optimizer 内各模块的实现，或把下面的委托换成真实调用。
     进度契约不变：yield {"step", "status", "content"}，最后 yield 优化后的完整 Markdown 字符串。
     也兼容旧式接入：不 yield 进度，直接返回完整 Markdown 字符串的普通函数 / 协程。
     """
-    async for progress in run_mock_optimize(intent, skill, round_number):
+    async for progress in run_mock_optimize(intent, skill, round_number, case_ids=case_ids):
         yield progress
 
 
@@ -128,8 +135,8 @@ def settle_elapsed(states, started, status):
             state["elapsed"] = round(time.monotonic() - started.pop(state["step"]), 1)
 
 
-async def optimize_events(intent: str, skill: str, round_number: int):
-    generator = optimize_skill(intent, skill, round_number)
+async def optimize_events(intent: str, skill: str, round_number: int, case_ids=None):
+    generator = optimize_skill(intent, skill, round_number, case_ids)
     if not (inspect.isasyncgen(generator) or inspect.isgenerator(generator)):
         # 旧式接入：optimize_skill 是普通函数 / 协程，等返回后直接发最终版本。
         optimized = generator

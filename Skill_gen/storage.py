@@ -107,10 +107,11 @@ def latest_skill(session_id):
     return {"id": last["id"], "round": last.get("round", 0), "content": contents[last["id"]]}
 
 
-def requeue_optimize(session_id):
-    """把会话重新排队进入下一轮优化；由 worker 像生成任务一样领取执行。"""
+def requeue_optimize(session_id, case_ids=None):
+    """把会话重新排队进入下一轮优化；case_ids 是本轮勾选的训练用例 id（空列表表示全部）。"""
     session = get(session_id)
-    session.update(phase="optimize", round=session.get("round", 0) + 1, status="queued", updated_at=now())
+    session.update(phase="optimize", round=session.get("round", 0) + 1, status="queued",
+                   cases=list(case_ids or []), updated_at=now())
     save_session(session)
     return session
 

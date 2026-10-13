@@ -11,7 +11,7 @@ from fastapi import Body, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from net_skill.pipeline import catalog as skill_catalog, generate_events, optimize_events
+from net_skill.pipeline import cases as training_cases, catalog as skill_catalog, generate_events, optimize_events
 from net_skill.pipeline import resolve_skill
 import storage
 
@@ -24,7 +24,7 @@ def plan_events(session):
         latest = storage.latest_skill(session["id"])
         if latest is None:
             raise RuntimeError("No skill version available to optimize")
-        return optimize_events(session["intent"], latest["content"], session["round"])
+        return optimize_events(session["intent"], latest["content"], session["round"], session.get("cases") or None)
     return generate_events(session["intent"], session.get("skill", ""))
 
 
@@ -108,6 +108,12 @@ async def list_skill_catalog():
     return skill_catalog()
 
 
+@app.get("/api/skills/cases", include_in_schema=False)
+async def list_training_cases():
+    # 优化时可勾选的训练用例；未选择时优化轮次在全部用例中轮换。
+    return training_cases()
+
+
 @app.post("/api/skills/sessions", status_code=201)
 async def create_session(intent: str = Body(embed=True, min_length=1, max_length=8000),
                          skill: str = Body(default="", embed=True, max_length=200)):
@@ -161,13 +167,15 @@ async def stop_session(session_id: str):
 
 
 @app.post("/api/skills/sessions/{session_id}/optimize")
-async def optimize_session(session_id: str):
+async def optimize_session(session_id: str, cases: list = Body(default=None, embed=True)):
     session = require_session(session_id)
     if session["status"] in storage.ACTIVE:
         raise HTTPException(409, "Session is still running")
     if storage.latest_skill(session_id) is None:
         raise HTTPException(409, "No skill version to optimize yet")
-    return storage.requeue_optimize(session_id)
+    # 只保留字符串用例 id；全部无效或未选择时按全部用例处理。
+    selected = [str(item)[:100] for item in cases or [] if isinstance(item, str)][:200]
+    return storage.requeue_optimize(session_id, selected)
 
 
 @app.get("/api/skills/sessions/{session_id}/versions/{version_id}/download")

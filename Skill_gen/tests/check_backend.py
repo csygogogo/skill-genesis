@@ -124,11 +124,16 @@ def check_api(base):
     wait_for_status(base, session_id, "generated")
     skill_0 = next(e for e in session_events(base, session_id) if e.get("id") == "skill-0")
     previous = skill_0["content"]
-    for round_number in (1, 2):
-        optimize = Request(f"{base}/api/skills/sessions/{session_id}/optimize", b"{}", {"Content-Type": "application/json"}, "POST")
+    # 用例目录与定向选择：列出训练样本；优化请求带 cases 只对勾选的用例演练。
+    with urlopen(base + "/api/skills/cases") as response:
+        cases = json.load(response)
+    assert any(item.get("id") == "diag_001" for item in cases["items"]), cases
+    for round_number, body in ((1, {"cases": ["diag_001"]}), (2, {})):
+        optimize = Request(f"{base}/api/skills/sessions/{session_id}/optimize", json.dumps(body).encode(), {"Content-Type": "application/json"}, "POST")
         with urlopen(optimize) as response:
             session = json.load(response)
         assert session["phase"] == "optimize" and session["round"] == round_number and session["status"] == "queued"
+        assert session["cases"] == body.get("cases", [])
         wait_for_status(base, session_id, "generated")
         events = session_events(base, session_id)
         # 每轮先推送五个阶段的进度清单，最后一条全completed，再发优化后的版本。
@@ -146,6 +151,9 @@ def check_api(base):
         assert snapshots[-1]["seq"] < optimized["seq"]
         assert optimized["content"].startswith(previous)
         previous = optimized["content"]
+        if round_number == 1:
+            # 定向选择生效：本轮快照内容来自 diag_001（接口down 故障）。
+            assert any("接口down" in json.dumps(snapshot, ensure_ascii=False) for snapshot in snapshots), "case selection not applied"
     with urlopen(f"{base}/api/skills/sessions/{session_id}/versions/skill-2/download") as response:
         assert response.read().decode("utf-8") == previous
     print("PASS: FastAPI SSE, CORS, optimize progress events, step-by-step rounds, downloads and input validation")

@@ -13,10 +13,13 @@ from . import agent, editor, faults
 DELAYS = {"inject": 1.5, "send": 1.0, "analyze": 2.5, "recover": 1.0, "revise": 1.5}
 
 
-async def optimize(intent: str, skill: str, round_number: int, delays: dict = None):
-    """逐阶段 yield 进度，最后 yield 优化后的完整 Markdown（与 pipeline 的接入契约一致）。"""
+async def optimize(intent: str, skill: str, round_number: int, delays: dict = None, case_ids=None):
+    """逐阶段 yield 进度，最后 yield 优化后的完整 Markdown（与 pipeline 的接入契约一致）。
+
+    case_ids 是界面选择的训练用例 id；为空时在本轮全部用例中轮换。
+    """
     pacing = {**DELAYS, **(delays or {})}
-    fault = faults.pick(round_number)
+    fault = faults.pick(round_number, case_ids)
 
     yield {"step": 1, "status": "running", "content": "正在实际网络环境中注入故障…"}
     await asyncio.sleep(pacing["inject"])

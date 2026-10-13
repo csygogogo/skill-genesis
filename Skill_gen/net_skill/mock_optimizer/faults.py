@@ -50,12 +50,22 @@ BUILTIN = (
 )
 
 
+def samples():
+    """训练集原始样本列表，供界面选择做定向优化；读取失败返回空。"""
+    try:
+        data = json.loads(DATA_FILE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    return [item for item in data if isinstance(item, dict)]
+
+
 def from_sample(sample: dict) -> dict:
     """把一条训练样本转换为演练故障；字段见 data/train_data.json。"""
     intent = str(sample.get("inject_intent", ""))
     named = re.search(r"注入(.+?)的故障", intent)
     answer = str(sample.get("gold_answer", ""))
     return {
+        "case": str(sample.get("id", "")),
         "name": named.group(1) if named else str(sample.get("id", "未知故障")),
         "symptom": str(sample.get("question", "")),
         "scope": str(sample.get("inject_device", "组网环境")),
@@ -68,20 +78,26 @@ def from_sample(sample: dict) -> dict:
 
 def load():
     """读取训练集构建故障列表；文件缺失、解析失败或为空时回退内置场景。"""
-    try:
-        samples = json.loads(DATA_FILE.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return list(BUILTIN)
-    converted = [from_sample(item) for item in samples if isinstance(item, dict)]
+    converted = [from_sample(item) for item in samples()]
     return converted or list(BUILTIN)
 
 
 FAULTS = tuple(load())
 
 
-def pick(round_number: int) -> dict:
-    """按轮次轮换故障场景：每轮优化演练一种不同的故障。"""
-    return FAULTS[(round_number - 1) % len(FAULTS)]
+def pool(case_ids=None):
+    """按界面选择的用例 id 过滤故障；未选择或全部无效时使用全部。"""
+    if not case_ids:
+        return list(FAULTS)
+    wanted = set(case_ids)
+    chosen = [fault for fault in FAULTS if fault.get("case") in wanted]
+    return chosen or list(FAULTS)
+
+
+def pick(round_number: int, case_ids=None) -> dict:
+    """在选定的用例范围内按轮次轮换故障场景：每轮优化演练一种不同的故障。"""
+    scoped = pool(case_ids)
+    return scoped[(round_number - 1) % len(scoped)]
 
 
 def inject(fault: dict) -> str:

@@ -63,7 +63,12 @@ def check():
 
     seed = asyncio.run(first_event())
     assert seed["type"] == "skill" and "network-fault-diag" in seed["content"]
-    print("PASS: mock optimizer rotates faults, per-step progress, trace exposes gap, skill grows each round; skill catalog resolves")
+    # 用例选择：按样本 id 过滤故障；无效选择回退全部。
+    sample_ids = [item["id"] for item in faults.samples()]
+    assert sample_ids, "data/train_data.json 应至少有一条训练样本"
+    assert faults.pick(1, [sample_ids[0]]).get("case") == sample_ids[0]
+    assert faults.pick(1, ["no-such-case"]).get("case") == faults.pick(1).get("case")
+    print("PASS: mock optimizer rotates faults, per-step progress, trace exposes gap, skill grows each round; skill catalog and case selection resolve")
 
 
 if __name__ == "__main__":

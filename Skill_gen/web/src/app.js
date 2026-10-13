@@ -1,4 +1,4 @@
-import { api, sessionEvents, skillCatalog } from './api.js';
+import { api, sessionEvents, skillCatalog, skillCases } from './api.js';
 import { generateDemo } from './demo.js';
 const $ = (id) => document.getElementById(id);
 const defaults = window.SKILL_STUDIO_CONFIG || {};
@@ -13,6 +13,7 @@ let config = { ...defaults, mode: saved.mode || defaults.mode || 'api', endpoint
 let events = [], selectedVersion = '', filter = 'all', running = false, controller, lastSeq = 0, phaseLabel = '生成中';
 let toastTimer, currentSession = null, sessionConfig = null, view = 0, historyLimit = 50, historyRequest = 0, pendingDelete = null;
 let skillChoices = [], selectedSkill = '';
+let caseChoices = [], selectedCases = new Set();
 const sessionLabels = { queued: '排队中', running: '生成中', generated: '已生成', completed: '已完成', failed: '失败', stopped: '已停止', interrupted: '已中断', deleted: '已删除' };
 const labels = { subgraph: '子图信息', skill: '初始 Skill', optimized_skill: '优化后的 Skill', strategy: '调整策略', execution_trace: '执行轨迹', optimize_step: '优化进度', final_skill: '最终 Skill' };
 const isSkill = (event) => ['skill', 'optimized_skill', 'final_skill'].includes(event.type);
@@ -36,6 +37,23 @@ async function loadSkills() {
   $('skill-select').innerHTML = skillChoices.map(s => `<option value="${escape(s.id)}">${escape(s.name || s.id)}${s.description ? ` · ${escape(s.description.slice(0, 26))}` : ''}</option>`).join('');
   let saved = ''; try { saved = localStorage.getItem('skill-studio-skill') || ''; } catch {}
   useSkill(skillChoices.some(item => item.id === saved) ? saved : skillChoices[0].id);
+}
+// 优化用例多选：默认全选并记住上次选择；优化时只对勾选的用例做演练。
+function persistCases() { try { localStorage.setItem('skill-studio-cases', JSON.stringify([...selectedCases])); } catch {} }
+function renderCases() {
+  $('case-count').textContent = `${selectedCases.size}/${caseChoices.length}`;
+  $('case-list').innerHTML = caseChoices.map(c => `<label class="case-item"><input type="checkbox" value="${escape(c.id)}" ${selectedCases.has(c.id) ? 'checked' : ''}><span><strong>${escape(c.id)}</strong>${escape(String(c.question || '').slice(0, 60))}<small>${escape(c.inject_device || '')}${c.gold_answer ? ` · 期望根因：${escape(String(c.gold_answer).slice(0, 30))}` : ''}</small></span></label>`).join('');
+}
+async function loadCases() {
+  if (config.mode === 'demo') { $('case-panel').hidden = true; return; }
+  try { caseChoices = (await skillCases({ ...config })).items || []; }
+  catch { caseChoices = []; }
+  $('case-panel').hidden = !caseChoices.length;
+  if (!caseChoices.length) { selectedCases = new Set(); return; }
+  let saved = []; try { saved = JSON.parse(localStorage.getItem('skill-studio-cases') || '[]'); } catch {}
+  const known = caseChoices.filter(c => saved.includes(c.id)).map(c => c.id);
+  selectedCases = new Set(known.length ? known : caseChoices.map(c => c.id));
+  renderCases();
 }
 function markdown(text) {
   // 仅渲染安全子集；后端 HTML 一律转义，不接受脚本、图片或链接。
@@ -130,7 +148,7 @@ function receive(event) {
   renderTimeline();
 }
 function status(text, className = '') { $('run-status').textContent = text; $('run-status').className = `status ${className}`; }
-function busy(value) { running = value; $('generate').hidden = value; $('stop').hidden = !value; $('intent').disabled = value; $('skill-select').disabled = value; $('try-demo')?.toggleAttribute('disabled', value); document.querySelectorAll('[data-prompt]').forEach(b => b.disabled = value); updateOptimize(); }
+function busy(value) { running = value; $('generate').hidden = value; $('stop').hidden = !value; $('intent').disabled = value; $('skill-select').disabled = value; $('case-all').disabled = $('case-none').disabled = value; document.querySelectorAll('#case-list input').forEach(b => b.disabled = value); $('try-demo')?.toggleAttribute('disabled', value); document.querySelectorAll('[data-prompt]').forEach(b => b.disabled = value); updateOptimize(); }
 // 优化按钮：API 模式下，当前会话已有 Skill 版本且不在排队/执行时可用；演示模式不支持。
 function canOptimize() {
   return config.mode === 'api' && currentSession && !running
@@ -297,10 +315,11 @@ $('stop').addEventListener('click', async () => {
 // 从最新版本继续一轮优化：提交后从上次事件位置续订，避免重放导致 delta 重复拼接。
 $('optimize').addEventListener('click', async () => {
   if (!canOptimize()) return;
+  if (caseChoices.length && !selectedCases.size) { toast('请至少勾选一个优化用例'); return; }
   const token = view, id = currentSession.id, runConfig = sessionConfig, cursor = lastSeq;
   $('optimize').disabled = true;
   try {
-    const session = await (await api(runConfig, `/${encodeURIComponent(id)}/optimize`, { method: 'POST' })).json();
+    const session = await (await api(runConfig, `/${encodeURIComponent(id)}/optimize`, { method: 'POST', body: JSON.stringify({ cases: [...selectedCases] }) })).json();
     if (token !== view) return;
     currentSession = session; refreshHistory();
     await watch(sessionEvents(runConfig, id, controller.signal, cursor), token, Date.now(), true, '优化中');
@@ -334,10 +353,18 @@ $('settings-form').addEventListener('submit', e => {
   if ($('mode').value === 'api') { try { const url = new URL(endpoint, location.href); if (!['http:', 'https:'].includes(url.protocol) || !endpoint || url.username || url.password) throw new Error(); } catch { toast('请输入有效的 HTTP / HTTPS 地址或相对接口路径'); return; } }
   config = { ...config, mode: $('mode').value, endpoint };
   let stored = true; try { localStorage.setItem('skill-studio-settings', JSON.stringify({ mode: config.mode, endpoint })); } catch { stored = false; }
-  connection(); refreshHistory(); loadSkills(); $('settings').close(); toast(!stored ? '设置已应用，浏览器不允许持久保存' : running ? '设置已保存，将在下次生成时生效' : '连接设置已保存');
+  connection(); refreshHistory(); loadSkills(); loadCases(); $('settings').close(); toast(!stored ? '设置已应用，浏览器不允许持久保存' : running ? '设置已保存，将在下次生成时生效' : '连接设置已保存');
 });
 $('skill-select').addEventListener('change', e => useSkill(e.target.value));
+$('case-list').addEventListener('change', e => {
+  if (!e.target.matches('input[type=checkbox]')) return;
+  e.target.checked ? selectedCases.add(e.target.value) : selectedCases.delete(e.target.value);
+  $('case-count').textContent = `${selectedCases.size}/${caseChoices.length}`; persistCases();
+});
+$('case-all').addEventListener('click', () => { selectedCases = new Set(caseChoices.map(c => c.id)); renderCases(); persistCases(); });
+$('case-none').addEventListener('click', () => { selectedCases = new Set(); renderCases(); persistCases(); });
 connection();
 refreshHistory(true);
 loadSkills();
+loadCases();
 setInterval(() => { if (!document.hidden) refreshHistory(); }, 5000);

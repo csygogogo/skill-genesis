@@ -29,3 +29,12 @@ export async function skillCatalog(config) {
   if (!response.ok) throw new Error(`Skill 目录请求失败（HTTP ${response.status}）`);
   return response.json();
 }
+
+// 优化用可选的训练用例列表：/api/skills/cases。
+export async function skillCases(config) {
+  const response = await fetch(sessionsURL(config).replace(/\/sessions$/, '/cases'), {
+    headers: { 'Content-Type': 'application/json', ...config.headers },
+  });
+  if (!response.ok) throw new Error(`优化用例请求失败（HTTP ${response.status}）`);
+  return response.json();
+}
