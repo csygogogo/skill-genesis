@@ -1,13 +1,19 @@
 """mock 优化流程检查：python -B tests/check_mock.py（只用标准库，零延迟跑四轮）。"""
 import asyncio
+import os
 import sys
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from net_skill import mock_optimizer
-from net_skill.mock_optimizer import agent, editor, faults
+from net_skill.mock_optimizer import agent, faults
 from net_skill.pipeline import catalog, generate_events, resolve_skill
+from net_skill.skill_editor import fallback
+
+# 清空大模型环境变量，编辑 agent 确定走规则回退，测试不依赖真实凭证。
+NO_LLM_ENV = {"ARK_API_KEY": "", "SKILL_LLM_MODEL": ""}
 
 BASE_SKILL = "# 网络故障定位 Skill\n\n## 步骤\n1. 收集告警。\n2. 检查链路。\n3. 输出结论。\n"
 
@@ -33,6 +39,9 @@ def check():
         trace = progresses[5]["content"]
         assert "受阻" in trace and fault["gap"] in trace, round_number
         assert "恢复" in progresses[7]["content"], round_number
+        # 第 5 步说明本次编辑用了哪个引擎；测试环境已清空凭证，必然回退规则编辑。
+        step5 = next(e for e in progresses if e.get("step") == 5 and e["status"] == "completed")
+        assert "回退" in step5["content"] or "大模型" in step5["content"], round_number
         # 每轮把缺口补成处理指引，Skill 只增不减。
         assert f"第 {round_number} 轮优化 · {fault['name']}故障处理" in final, round_number
         skill = final
@@ -44,11 +53,12 @@ def check():
     converted = faults.from_sample(sample)
     assert converted["name"] == "接口down" and converted["scope"] == "em5_serverleaf2"
     assert converted["root_cause"] == "接口 down" and "接口 down" in converted["gap"]
-    # 没有编号步骤的 Skill 也能完成分析并编辑。
+    # 没有编号步骤的 Skill 也能完成分析并编辑；轨迹判定 incorrect，回退章节照常追加。
     sparse = "# 只有描述的 Skill\n\n没有步骤。\n"
     analysis = agent.analyze(sparse, faults.FAULTS[0])
     assert "0 个步骤" in analysis["trace"]
-    assert sparse in editor.revise(sparse, 1, faults.FAULTS[0], analysis)
+    assert analysis["trajectory"]["verdict"] == "incorrect"
+    assert sparse in fallback.revise(sparse, 1, analysis["trajectory"])
     # Skill 目录：frontmatter 解析出名称与描述，选择解析支持命中与回退。
     items = catalog()["items"]
     assert items and items[0]["id"], "skills/ 下应至少有一个待优化 Skill"
@@ -72,4 +82,6 @@ def check():
 
 
 if __name__ == "__main__":
-    check()
+    # 清空大模型环境变量再跑：无论机器是否配置过凭证，编辑都走确定性回退。
+    with patch.dict(os.environ, NO_LLM_ENV):
+        check()

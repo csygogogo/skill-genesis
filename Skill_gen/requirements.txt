@@ -1,3 +1,5 @@
 # pip 会根据当前 Python 版本选择兼容版本；无需安装 standard 扩展。
 fastapi>=0.115
 uvicorn>=0.34
+# skill_editor 编辑 agent 优先接火山方舟大模型；未安装时自动回退规则编辑。
+openai>=1.30
