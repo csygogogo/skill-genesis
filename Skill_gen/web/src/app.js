@@ -1,5 +1,6 @@
 import { api, sessionEvents, skillCatalog, skillCases } from './api.js';
 import { generateDemo } from './demo.js';
+import { initAccuracyChart } from './chart.js';
 const $ = (id) => document.getElementById(id);
 const defaults = window.SKILL_STUDIO_CONFIG || {};
 let saved = {};
@@ -367,4 +368,5 @@ connection();
 refreshHistory(true);
 loadSkills();
 loadCases();
+initAccuracyChart(toast);
 setInterval(() => { if (!document.hidden) refreshHistory(); }, 5000);

@@ -28,10 +28,10 @@ pip install --no-compile -r requirements.txt
 ## 文件
 
 - `web/`：UI 界面代码（`index.html`、`styles.css`、`config.js`、`src/`）。
-- `net_skill/`：Skill 生成与优化逻辑，与 `web/` 同级；`pipeline.py` 是接入入口，`mock_optimizer/` 是当前接入的演练流程（故障注入 → 发送请求 → 故障分析 → 故障恢复 → 编辑并返回）。`data/train_data.json` 是训练集（`question` 故障现象、`gold_answer` 期望根因、`inject_intent` / `inject_device` 注入操作与设备），优化轮次按轮换使用；`skills/` 下放待优化的 Skill（生成阶段作为 V0 读入）。
+- `net_skill/`：Skill 生成与优化逻辑，与 `web/` 同级；`pipeline.py` 是接入入口，`mock_optimizer/` 是当前接入的演练流程（故障注入 → 发送请求 → 故障分析 → 故障恢复 → 编辑并返回）。`skill_editor/` 是轨迹驱动的编辑 agent：输入运维轨迹（用了哪个 Skill、调了哪些工具、结果对错），优先接火山方舟大模型编辑（需设置 `ARK_API_KEY`、`SKILL_LLM_MODEL` 环境变量，详见该模块 docstring），未配置或失败时自动回退规则编辑。`data/train_data.json` 是训练集（`question` 故障现象、`gold_answer` 期望根因、`inject_intent` / `inject_device` 注入操作与设备），优化轮次按轮换使用；`skills/` 下放待优化的 Skill（生成阶段作为 V0 读入）。
 - `app.py`：FastAPI 服务入口，托管 `web/` 界面并调用 `net_skill/` 的逻辑；`storage.py` 是历史记录存储。
 - `CHANGELOG.md`：每次修改的更新日志。
 - `history/`：每次生成一个文件夹，保存意图、事件流和各版本 `.md`。
-- 页面可以选择待优化 Skill（`GET /api/skills/catalog` 列出，默认选最近生成用过的）、勾选优化用例（`GET /api/skills/cases` 列出，优化请求带 `cases`，只对勾选的用例做定向优化），查看历史、切换版本、下载 Skill，以及确认后删除记录。
+- 页面可以选择待优化 Skill（`GET /api/skills/catalog` 列出，默认选最近生成用过的）、勾选优化用例（`GET /api/skills/cases` 列出，优化请求带 `cases`，只对勾选的用例做定向优化），查看历史、切换版本、下载 Skill，以及确认后删除记录；底部「准确率曲线」面板支持手动录入每轮优化的准确率并绘制折线图，也可导入 Excel（.xlsx）/ CSV 自动识别「轮次、准确率」两列（数据保存在浏览器本地）。
 
 关闭页面不会停止后台任务；关闭后端会停止执行，但已保存的记录仍保留。

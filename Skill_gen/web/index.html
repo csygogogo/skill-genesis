@@ -56,6 +56,28 @@
 
         <section class="preview-panel" aria-labelledby="preview-title"><div class="panel-heading"><div><h2 id="preview-title"><span class="purple-icon">▤</span> Skill 预览</h2><p id="preview-subtitle">你的可复用能力，即将在此成形</p></div><span class="file-badge">.md</span></div><div class="version-bar"><label for="version">版本</label><select id="version" disabled><option>暂无版本</option></select><span id="latest-label">实时更新</span></div><div class="file-header"><span>▤</span> SKILL.md <span id="preview-version">—</span></div><div class="skill-content" id="skill-content"><div class="preview-empty"><div class="document-symbol">≡<span>✧</span></div><h3>等待第一个版本</h3><p>初始 Skill 和每轮优化结果<br />都可以在这里查看。</p></div></div><div class="preview-footer"><span id="version-count">0 个版本</span><div><button class="secondary-button" id="copy" disabled>复制</button><button class="dark-button" id="download" disabled>↓ 下载 Skill</button></div></div></section>
       </div>
+
+      <details class="chart-panel" open>
+        <summary>准确率曲线 <span id="accuracy-count" class="count-badge">0 个数据点</span><span class="history-caption">手动记录每轮优化的准确率，观察 Skill 的进化</span></summary>
+        <div class="chart-body">
+          <form id="accuracy-form" class="accuracy-form">
+            <label for="accuracy-round">优化轮次</label>
+            <input id="accuracy-round" type="number" min="0" max="999" step="1" placeholder="如 1" required />
+            <label for="accuracy-value">准确率（%）</label>
+            <input id="accuracy-value" type="number" min="0" max="100" step="0.1" placeholder="如 62.5" required />
+            <button class="primary-button" type="submit">＋ 记录数据点</button>
+            <button class="secondary-button" id="accuracy-import" type="button">↥ 导入 Excel/CSV</button>
+            <input id="accuracy-file" type="file" accept=".xlsx,.csv,.xls" hidden />
+            <button class="secondary-button" id="accuracy-clear" type="button">清空</button>
+          </form>
+          <div class="chart-empty" id="accuracy-empty"><div class="empty-symbol">◠</div><h3>还没有记录</h3><p>输入优化轮次与对应准确率（0–100%），或导入 Excel / CSV，<br />曲线会在这里逐轮生长。</p></div>
+          <div class="chart-stage" id="accuracy-stage" hidden>
+            <div class="chart-plot" id="accuracy-plot"></div>
+            <div class="chart-tooltip" id="accuracy-tooltip" role="status" hidden></div>
+          </div>
+          <div class="accuracy-chips" id="accuracy-chips" aria-label="已记录的准确率数据点"></div>
+        </div>
+      </details>
       <footer class="page-footer"><span><span class="tiny-spark">✧</span> 为每一次迭代，保留思考的轨迹。</span><span>SKILL STUDIO / 01</span></footer>
     </main>
   </div>

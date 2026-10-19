@@ -2,6 +2,28 @@
 
 记录 Skill Studio 的每次修改，新的在最上面。日期为提交当日。
 
+## 2026-10-19
+
+### 新增
+
+- 准确率曲线支持从 Excel / CSV 导入（`web/src/sheet.js`）：按钮选择文件或直接把文件拖进面板，解析后自动合并进折线图；列按表头关键字（轮次 / 准确率，支持 round / accuracy）自动识别，无表头时按「前两列数字」回退，单列数值按行序编轮次，0–1 区间数值自动换算为百分比；与已录数据合并时同轮次以导入值为准，无效行忽略并在提示中计数。
+- `.xlsx` 解析零第三方依赖：基于浏览器内置 `DecompressionStream`（deflate-raw）与 `DOMParser` 读取 ZIP + XML（含共享字符串表）；CSV 支持引号字段并自动识别逗号 / 分号 / 制表符；旧版 `.xls` 与浏览器缺少所需 API（需 Chrome / Edge 80+ 或 Firefox 113+）时均给出明确的中文提示。
+- 界面新增「准确率曲线」面板（`web/src/chart.js`）：横轴为 Skill 优化轮次、纵轴为准确率（0–100%）的原生 SVG 折线图，手动输入「轮次 + 准确率」逐点记录，重复轮次覆盖更新，数据点以 chips 形式列出、可单条删除或清空。
+- 折线图交互：十字线随指针吸附最近轮次并联动 tooltip（值为主、标签为辅），终点数值直接标注；数据保存在浏览器 localStorage（`skill-studio-accuracy`），刷新不丢失。
+
+## 2026-10-17
+
+### 新增
+
+- `net_skill/skill_editor/` skill 编辑 agent 模块：输入运维轨迹（用了哪个 Skill、按步骤调了哪些工具及成败、最终结论与期望根因比对的对错判定），优先接火山方舟大模型（openai SDK；环境变量 `ARK_API_KEY`、`SKILL_LLM_MODEL`，可选 `ARK_BASE_URL`、`SKILL_LLM_TIMEOUT`，见模块 docstring）分析轨迹并编辑 Skill；未安装 openai、未配置凭证或调用 / 输出校验失败时自动回退规则编辑，`python app.py` 开箱可跑。
+- `tests/check_editor.py`：覆盖轨迹契约、对错判定、两种渲染、prompt 构造、输出校验、规则回退与注入假客户端的引擎选择，零网络零外部依赖。
+
+### 调整
+
+- 第 3 步「定位与分析」升级为产出结构化运维轨迹（含工具调用序列与 correct / incorrect 判定），界面轨迹文本新增工具名与结果判定行。
+- 第 5 步「编辑优化 Skill」改由 skill_editor 编辑 agent 完成，完成后说明本次用的编辑引擎（火山方舟大模型 / 回退规则编辑）。
+- `mock_optimizer/editor.py` 移除，规则编辑平移至 `skill_editor/fallback.py`（入参从故障字典换成运维轨迹）；`requirements.txt` 新增 `openai>=1.30`；`tests/check_mock.py` 清空大模型环境变量保证确定性，断言同步更新。
+
 ## 2026-10-13
 
 ### 新增

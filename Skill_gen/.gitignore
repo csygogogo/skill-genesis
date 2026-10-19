@@ -3,3 +3,5 @@ __pycache__/
 *.pyc
 node_modules/
 history/
+# Excel 打开文件时生成的锁文件
+~$*
