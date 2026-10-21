@@ -1,6 +1,7 @@
-import { api, sessionEvents, skillCatalog, skillCases } from './api.js';
+import { api, sessionEvents, skillCatalog, skillCases, skillEditRecords } from './api.js';
 import { generateDemo } from './demo.js';
 import { initAccuracyChart } from './chart.js';
+import { initEditRecords } from './records.js';
 const $ = (id) => document.getElementById(id);
 const defaults = window.SKILL_STUDIO_CONFIG || {};
 let saved = {};
@@ -354,7 +355,7 @@ $('settings-form').addEventListener('submit', e => {
   if ($('mode').value === 'api') { try { const url = new URL(endpoint, location.href); if (!['http:', 'https:'].includes(url.protocol) || !endpoint || url.username || url.password) throw new Error(); } catch { toast('请输入有效的 HTTP / HTTPS 地址或相对接口路径'); return; } }
   config = { ...config, mode: $('mode').value, endpoint };
   let stored = true; try { localStorage.setItem('skill-studio-settings', JSON.stringify({ mode: config.mode, endpoint })); } catch { stored = false; }
-  connection(); refreshHistory(); loadSkills(); loadCases(); $('settings').close(); toast(!stored ? '设置已应用，浏览器不允许持久保存' : running ? '设置已保存，将在下次生成时生效' : '连接设置已保存');
+  connection(); refreshHistory(); loadSkills(); loadCases(); loadEditRecords(); $('settings').close(); toast(!stored ? '设置已应用，浏览器不允许持久保存' : running ? '设置已保存，将在下次生成时生效' : '连接设置已保存');
 });
 $('skill-select').addEventListener('change', e => useSkill(e.target.value));
 $('case-list').addEventListener('change', e => {
@@ -369,4 +370,12 @@ refreshHistory(true);
 loadSkills();
 loadCases();
 initAccuracyChart(toast);
+const editRecordsView = initEditRecords({ toast, load: () => skillEditRecords({ ...config }), markdown });
+// 编辑记录与目录 / 用例一样跟随运行模式：演示模式下后端接口不可达，隐藏面板。
+function loadEditRecords() {
+  const hidden = config.mode === 'demo';
+  document.getElementById('edit-records-panel').hidden = hidden;
+  if (!hidden) editRecordsView.reload();
+}
+loadEditRecords();
 setInterval(() => { if (!document.hidden) refreshHistory(); }, 5000);

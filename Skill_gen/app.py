@@ -11,7 +11,7 @@ from fastapi import Body, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from net_skill.pipeline import cases as training_cases, catalog as skill_catalog, generate_events, optimize_events
+from net_skill.pipeline import cases as training_cases, catalog as skill_catalog, edit_records as load_edit_records, generate_events, optimize_events
 from net_skill.pipeline import resolve_skill
 import storage
 
@@ -112,6 +112,12 @@ async def list_skill_catalog():
 async def list_training_cases():
     # 优化时可勾选的训练用例；未选择时优化轮次在全部用例中轮换。
     return training_cases()
+
+
+@app.get("/api/skills/edit-records", include_in_schema=False)
+async def list_edit_records():
+    # 每轮优化的 Skill 编辑记录（output/edit_records.json）；文件缺失或格式错误时返回空列表。
+    return load_edit_records()
 
 
 @app.post("/api/skills/sessions", status_code=201)

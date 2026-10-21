@@ -9,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from net_skill import mock_optimizer
 from net_skill.mock_optimizer import agent, faults
-from net_skill.pipeline import catalog, generate_events, resolve_skill
+from net_skill.pipeline import catalog, edit_records, generate_events, resolve_skill
 from net_skill.skill_editor import fallback
 
 # 清空大模型环境变量，编辑 agent 确定走规则回退，测试不依赖真实凭证。
@@ -66,6 +66,14 @@ def check():
     assert first["name"] == "network-fault-diag" and "网络故障" in first["description"]
     assert resolve_skill("network-fault-diag") == "network-fault-diag"
     assert resolve_skill("no-such-skill") == items[0]["id"] and resolve_skill("") == items[0]["id"]
+    # 编辑记录：output/edit_records.json 可读时字段齐全；文件缺失时安全返回空列表。
+    records = edit_records()["items"]
+    assert isinstance(records, list)
+    for record in records:
+        assert set(record) == {"session", "round", "task_ids", "accuracy", "generated_at", "edit_count", "edits"}
+        assert record["edit_count"] == len(record["edits"])
+        for edit in record["edits"]:
+            assert {"index", "op", "status", "skill_name", "references", "target", "summary", "content"} <= set(edit)
 
     async def first_event():
         async for event in generate_events("意图", "network-fault-diag"):

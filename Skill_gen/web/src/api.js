@@ -38,3 +38,12 @@ export async function skillCases(config) {
   if (!response.ok) throw new Error(`优化用例请求失败（HTTP ${response.status}）`);
   return response.json();
 }
+
+// 每轮优化的 Skill 编辑记录：/api/skills/edit-records（读 output/edit_records.json）。
+export async function skillEditRecords(config) {
+  const response = await fetch(sessionsURL(config).replace(/\/sessions$/, '/edit-records'), {
+    headers: { 'Content-Type': 'application/json', ...config.headers },
+  });
+  if (!response.ok) throw new Error(`编辑记录请求失败（HTTP ${response.status}）`);
+  return response.json();
+}

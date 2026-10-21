@@ -2,6 +2,13 @@
 
 记录 Skill Studio 的每次修改，新的在最上面。日期为提交当日。
 
+## 2026-10-21
+
+### 新增
+
+- `output/edit_records.json` Skill 编辑记录格式（session / round / task_ids / accuracy / generated_at / edit_count / edits[]，每条编辑含 index / op / status / skill_name / references / target / summary / content），并附两轮真实格式的示例记录。
+- 界面新增「Skill 编辑记录」面板（`web/src/records.js`）：`GET /api/skills/edit-records` 读取 `output/edit_records.json`，按轮次 tab 展示（用例 / 准确率），点选单条编辑查看详情（操作类型、状态、位置、关联文件、Markdown 渲染的编辑内容）；演示模式下与目录 / 用例面板一同隐藏，支持手动刷新。
+
 ## 2026-10-19
 
 ### 新增

@@ -32,6 +32,6 @@ pip install --no-compile -r requirements.txt
 - `app.py`：FastAPI 服务入口，托管 `web/` 界面并调用 `net_skill/` 的逻辑；`storage.py` 是历史记录存储。
 - `CHANGELOG.md`：每次修改的更新日志。
 - `history/`：每次生成一个文件夹，保存意图、事件流和各版本 `.md`。
-- 页面可以选择待优化 Skill（`GET /api/skills/catalog` 列出，默认选最近生成用过的）、勾选优化用例（`GET /api/skills/cases` 列出，优化请求带 `cases`，只对勾选的用例做定向优化），查看历史、切换版本、下载 Skill，以及确认后删除记录；底部「准确率曲线」面板支持手动录入每轮优化的准确率并绘制折线图，也可导入 Excel（.xlsx）/ CSV 自动识别「轮次、准确率」两列（数据保存在浏览器本地）。
+- 页面可以选择待优化 Skill（`GET /api/skills/catalog` 列出，默认选最近生成用过的）、勾选优化用例（`GET /api/skills/cases` 列出，优化请求带 `cases`，只对勾选的用例做定向优化），查看历史、切换版本、下载 Skill，以及确认后删除记录；底部「准确率曲线」面板支持手动录入每轮优化的准确率并绘制折线图，也可导入 Excel（.xlsx）/ CSV 自动识别「轮次、准确率」两列（数据保存在浏览器本地）；「Skill 编辑记录」面板读取 `output/edit_records.json`（`GET /api/skills/edit-records`），按轮次查看每条编辑的操作、状态与内容。
 
 关闭页面不会停止后台任务；关闭后端会停止执行，但已保存的记录仍保留。

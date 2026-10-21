@@ -1,6 +1,7 @@
 """接入你的 Skill 生成与优化函数；界面分两步调用：生成 → 逐轮优化。"""
 import asyncio
 import inspect
+import json
 import time
 from pathlib import Path
 
@@ -43,6 +44,20 @@ def catalog() -> dict:
 def cases() -> dict:
     """列出 data/train_data.json 的训练用例，供界面勾选做定向优化。"""
     return {"items": training_faults.samples()}
+
+
+# 每轮优化产出的编辑记录：output/edit_records.json，字段见 skill_editor / 评测侧约定。
+EDIT_RECORDS_FILE = Path(__file__).resolve().parent.parent / "output" / "edit_records.json"
+
+
+def edit_records() -> dict:
+    """列出 output/edit_records.json 的 Skill 编辑记录，供界面查看每轮优化的具体修改。"""
+    try:
+        data = json.loads(EDIT_RECORDS_FILE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {"items": []}
+    items = data if isinstance(data, list) else [item for item in (data or {}).get("records", []) if isinstance(item, dict)]
+    return {"items": [item for item in items if isinstance(item, dict)]}
 
 
 def resolve_skill(skill_id: str = "") -> str:

@@ -78,6 +78,21 @@
           <div class="accuracy-chips" id="accuracy-chips" aria-label="已记录的准确率数据点"></div>
         </div>
       </details>
+
+      <details class="chart-panel records-panel" open id="edit-records-panel">
+        <summary>Skill 编辑记录 <span id="edit-records-count" class="count-badge">—</span><span class="history-caption">每轮优化对 Skill 做了哪些具体修改（output/edit_records.json）</span><span class="case-tools"><button type="button" class="text-button" id="edit-records-refresh">刷新</button></span></summary>
+        <div class="chart-body">
+          <div class="chart-empty" id="edit-records-empty"><div class="empty-symbol">✎</div><h3>暂无编辑记录</h3><p>优化产出编辑记录后（output/edit_records.json），<br />可在这里按轮次查看每一条修改。</p></div>
+          <div id="edit-records-main" hidden>
+            <div class="record-tabs" id="record-tabs" role="tablist" aria-label="优化轮次"></div>
+            <div class="record-meta" id="record-meta"></div>
+            <div class="edit-layout">
+              <div class="edit-list" id="edit-list" aria-label="本轮编辑列表"></div>
+              <div class="edit-detail" id="edit-detail"></div>
+            </div>
+          </div>
+        </div>
+      </details>
       <footer class="page-footer"><span><span class="tiny-spark">✧</span> 为每一次迭代，保留思考的轨迹。</span><span>SKILL STUDIO / 01</span></footer>
     </main>
   </div>
