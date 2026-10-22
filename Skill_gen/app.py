@@ -11,8 +11,8 @@ from fastapi import Body, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from net_skill.pipeline import cases as training_cases, catalog as skill_catalog, edit_records as load_edit_records, generate_events, optimize_events
-from net_skill.pipeline import resolve_skill
+from net_skill.dcn_opencode.pipeline import cases as training_cases, catalog as skill_catalog, edit_records as load_edit_records, generate_events, optimize_events
+from net_skill.dcn_opencode.pipeline import resolve_skill
 import storage
 
 tasks = {}
@@ -24,7 +24,8 @@ def plan_events(session):
         latest = storage.latest_skill(session["id"])
         if latest is None:
             raise RuntimeError("No skill version available to optimize")
-        return optimize_events(session["intent"], latest["content"], session["round"], session.get("cases") or None)
+        return optimize_events(session["intent"], latest["content"], session["round"], session.get("cases") or None,
+                               session_id=session["id"])
     return generate_events(session["intent"], session.get("skill", ""))
 
 

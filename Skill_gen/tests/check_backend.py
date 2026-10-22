@@ -1,5 +1,6 @@
 """跨平台集成检查：python -B tests/check_backend.py（只用标准库）。"""
 import json
+import os
 from pathlib import Path
 import socket
 import subprocess
@@ -16,13 +17,14 @@ def backend_args(directory):
     return ["-c", "import sys; from pathlib import Path; import storage; storage.HISTORY_DIR = Path(sys.argv[1]); import uvicorn; from app import app; uvicorn.run(app, port=int(sys.argv[2]))", str(directory), "{port}"]
 
 
-def check_server(arguments, check):
+def check_server(arguments, check, extra_env=None):
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", 0))
         port = sock.getsockname()[1]
     process = subprocess.Popen(
         [sys.executable, "-B", *[arg.replace("{port}", str(port)) for arg in arguments]],
         cwd=ROOT, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+        env={**os.environ, **(extra_env or {})},
     )
     base = f"http://127.0.0.1:{port}"
     try:
@@ -75,7 +77,7 @@ def session_events(base, session_id):
         return [json.loads(line[6:]) for line in response.read().decode().splitlines() if line.startswith("data: ")]
 
 
-def check_api(base):
+def check_api(base, records_path):
     check_static(base)
     for path in ("/storage.py", "/history/example/session.json", "/requirements.txt"):
         try:
@@ -136,16 +138,16 @@ def check_api(base):
         assert session["cases"] == body.get("cases", [])
         wait_for_status(base, session_id, "generated")
         events = session_events(base, session_id)
-        # 每轮先推送五个阶段的进度清单，最后一条全completed，再发优化后的版本。
+        # 每轮推送状态机七个阶段的进度清单；回滚轮 3/4/5 阶段重复 running→completed。
         snapshots = [e for e in events if e["type"] == "optimize_step" and e["round"] == round_number]
         assert snapshots, "missing optimize_step progress events"
         assert all(step["status"] == "pending" for step in snapshots[0]["steps"])
         assert any(step["status"] == "running" for snapshot in snapshots for step in snapshot["steps"])
         final_steps = snapshots[-1]["steps"]
-        assert len(final_steps) == 6 and all(step["status"] == "completed" for step in final_steps)
-        # 五个执行阶段都带真实耗时（秒）；最后一步是收尾交接，不单独计时。
+        assert len(final_steps) == 7 and all(step["status"] == "completed" for step in final_steps)
+        # 六个执行阶段都带真实耗时（秒）；最后一步是收尾交接，不单独计时。
         assert all(isinstance(step.get("elapsed"), (int, float)) and step["elapsed"] >= 0
-                   for step in final_steps[:5]), final_steps
+                   for step in final_steps[:6]), final_steps
         optimized = next(e for e in events if e.get("id") == f"skill-{round_number}")
         assert optimized["type"] == "optimized_skill" and optimized["round"] == round_number
         assert snapshots[-1]["seq"] < optimized["seq"]
@@ -154,6 +156,18 @@ def check_api(base):
         if round_number == 1:
             # 定向选择生效：本轮快照内容来自 diag_001（接口down 故障）。
             assert any("接口down" in json.dumps(snapshot, ensure_ascii=False) for snapshot in snapshots), "case selection not applied"
+        # 状态机每轮把编辑记录写入重定向后的文件：弱草稿回滚 + 真实修订生效，准确率严格上升。
+        with urlopen(base + "/api/skills/edit-records") as response:
+            records = [r for r in json.load(response)["items"] if r.get("session") == session_id and r.get("round") == round_number]
+        assert records, f"missing edit record for round {round_number}"
+        record = records[0]
+        assert [edit["status"] for edit in record["edits"]] == ["rolled_back", "applied"], record["edits"]
+        assert record["accuracy"] > record["baseline_accuracy"], record
+        if round_number == 1:
+            assert record["task_ids"] == ["diag_001"] and record["baseline_accuracy"] == 0.0
+        else:
+            assert record["task_ids"] == ["diag_001", "diag_002"] and record["baseline_accuracy"] == 0.5
+        assert record["edit_count"] == len(record["edits"])
     with urlopen(f"{base}/api/skills/sessions/{session_id}/versions/skill-2/download") as response:
         assert response.read().decode("utf-8") == previous
     print("PASS: FastAPI SSE, CORS, optimize progress events, step-by-step rounds, downloads and input validation")
@@ -162,4 +176,7 @@ def check_api(base):
 if __name__ == "__main__":
     check_server(["-m", "http.server", "--directory", "web", "{port}", "--bind", "127.0.0.1"], check_static)
     with tempfile.TemporaryDirectory() as directory:
-        check_server(backend_args(Path(directory) / "history"), check_api)
+        records_path = Path(directory) / "edit_records.json"
+        # 记录重定向到临时目录；清空大模型凭证，状态机走确定性演练路径（弱草稿回滚 + 规则修订接受）。
+        env = {"SKILL_EDIT_RECORDS": str(records_path), "ARK_API_KEY": "", "SKILL_LLM_MODEL": ""}
+        check_server(backend_args(Path(directory) / "history"), lambda base: check_api(base, records_path), extra_env=env)

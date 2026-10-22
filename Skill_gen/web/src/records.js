@@ -3,7 +3,7 @@
 // 记录字段：session/round/task_ids/accuracy/generated_at/edit_count/edits[]，
 // edits[] 含 index/op/status/skill_name/references/target/summary/content。
 const OP_LABELS = { append_section: '追加章节', add_reference: '新增参考', update_section: '修订章节', update_description: '更新描述' };
-const STATUS_LABELS = { applied: '已生效', failed: '失败', pending: '待应用' };
+const STATUS_LABELS = { applied: '已生效', failed: '失败', pending: '待应用', rolled_back: '已回滚' };
 
 const accuracyText = (value) => {
   const percent = Number(value);

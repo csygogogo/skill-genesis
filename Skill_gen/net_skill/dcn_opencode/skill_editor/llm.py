@@ -59,8 +59,11 @@ def build_client():
     return _CLIENTS[key]
 
 
-def build_messages(skill: str, round_number: int, trajectory: dict) -> list:
-    """构造编辑 prompt：当前 Skill 全文 + 轨迹段 + 本轮编辑要求。"""
+def build_messages(skill: str, round_number: int, trajectory: dict, retry_note: str = "") -> list:
+    """构造编辑 prompt：当前 Skill 全文 + 轨迹段 + 本轮编辑要求。
+
+    retry_note 非空时（上一版候选被回滚后的重试），追加针对性要求。
+    """
     fault = trajectory.get("fault") or {}
     fault_name = fault.get("name", "未知故障")
     verdict_text = "正确（correct）" if trajectory["verdict"] == "correct" else "错误（incorrect）"
@@ -77,7 +80,7 @@ def build_messages(skill: str, round_number: int, trajectory: dict) -> list:
         {"role": "user", "content": (
             "<current_skill>\n" + skill + "\n</current_skill>\n\n"
             "<trajectory>\n" + trajectory_module.render_for_llm(trajectory) + "\n</trajectory>\n\n"
-            + request
+            + request + (f"\n\n{retry_note}" if retry_note else "")
         )},
     ]
 

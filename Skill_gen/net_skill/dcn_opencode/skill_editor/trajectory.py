@@ -28,6 +28,12 @@ def judge(answer: str, expected: str) -> str:
     return "correct" if answer in expected or expected in answer else "incorrect"
 
 
+def text_contains(haystack: str, needle: str) -> bool:
+    """规范化后判断 needle 是否出现在 haystack 中（容忍空格 / 标点 / 大小写差异）。"""
+    needle = _squash(needle)
+    return bool(needle) and needle in _squash(haystack)
+
+
 def _normalize_action(raw) -> dict:
     item = raw if isinstance(raw, dict) else {}
     return {
