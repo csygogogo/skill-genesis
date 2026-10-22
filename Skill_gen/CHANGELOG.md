@@ -2,6 +2,41 @@
 
 记录 Skill Studio 的每次修改，新的在最上面。日期为提交当日。
 
+## 2026-10-22 · dcn_opencode 真实优化闭环
+
+### 新增
+
+- `net_skill/dcn_opencode/` 七个模块补齐实现（对接评测平台与 opencode 服务的真实闭环，外部服务未配置时自动降级到本机可跑路径）：
+  - `polaris_client.py`：Polaris 评测平台 HTTP 客户端，两个接口——启动 agent 评测任务、获取评测结果与轨迹（结果为 CSV，含准确率；环境变量配置连接，接口字段按通用 REST 假设并标注 TODO）。
+  - `eval_parse.py`：agents 结果容错解析——CSV（中文 / 英文表头别名、分隔符嗅探、引号内换行轨迹、BOM）与 JSON 两种输入统一入口（case / question / answer / 准确率 / 轨迹，0–1 / 0–100 / 百分号归一）。
+  - `upload_skill_dcn.py`：编辑后的 Skill 经 HTTP 同步到远程 opencode 服务器（未配置或失败不阻断闭环）。
+  - `skill_edit.py`：具体编辑——评测结果映射为运维轨迹（带训练集故障快照），选最差 case 交 skill_editor 编辑；渲染 prompts 里的优化分析 prompt。
+  - `prompts/skill_optimize_analysis.txt`：逐 case 的归因 / 修改建议 / 影响面分析 prompt。
+  - `dcn_pipeline.py`：闭环编排（上传 → 评测 → 解析 → 编辑 → 严格上升才接受，否则回滚重编辑 → 同步，循环），支持 `python -m` 与评测函数注入。
+  - `run_dcn_optimize_loop.sh`：命令行启动入口（自动选 venv Python）。
+- `tests/check_dcn.py`：解析容错、客户端降级、轨迹映射与分析 prompt、闭环接受 / 回滚 / 跳过与记录落盘。
+
+## 2026-10-22 · 目录按领域分包
+
+### 调整
+
+- `net_skill/` 按领域分包：原外层的 skill 优化代码（pipeline / state_machine / mock_optimizer / skill_editor / data / skills）整体迁入 `net_skill/dcn_opencode/`（DCN 领域）；新增 `net_skill/ci_hummingbrid/` 占位（CI 领域，待接入）。
+- `app.py` 与测试的接入路径改为 `net_skill.dcn_opencode.pipeline`；`state_machine` 的编辑记录仍写到项目根 `output/edit_records.json`（多领域共用，路径深度随包层级修正）。
+
+## 2026-10-22
+
+### 新增
+
+- `net_skill/state_machine.py` 评测驱动的 skill 优化状态机：基线评测（当前 Skill 在全部勾选用例上的准确率与轨迹）→ 编辑候选 → 评测候选 → 准确率严格上升才接受；相等或下降回滚候选并重新编辑（上限 2 次尝试），仍无提升则保持基线版本；基线满分时跳过编辑并说明。阶段从 6 个调整为 7 个（注入故障 / 基线评测 / 编辑 Skill / 评测候选 / 接受-回滚 / 故障恢复 / 返回），编辑、评测、决策三个阶段在回滚重试时重复 running→completed，前端零改动适配。
+- `mock_optimizer/agent.py` 新增评测器：`covered`（正文含期望根因，或故障名与设备同时出现；剥 frontmatter 防止 description 误判）、`run_case` / `evaluate`（覆盖用例得出根因 correct，未覆盖受阻 incorrect，accuracy = 判对数/总数）。
+- 每轮优化把真实结果追加写入 `output/edit_records.json`：新增 `baseline_accuracy` 字段，edits 状态扩展 `rolled_back`（已回滚）；写入为临时文件 + 原子替换，文件损坏时自动重建，可用环境变量 `SKILL_EDIT_RECORDS` 重定向。编辑记录面板新增「已回滚」状态徽章。
+- 未接入大模型时第 1 次编辑尝试使用演练弱草稿（不含根因的泛化章节），用于确定性演示「回滚 → 重新编辑 → 接受」路径；接入后由真实大模型输出交评测器裁决，重试时 `retry_note` 提示明确覆盖设备与根因。
+
+### 调整
+
+- `mock_optimizer/__init__.py` 移除旧线性流程（由 state_machine 取代）；`pipeline.OPTIMIZE_STEPS` / `EDIT_RECORDS_FILE` 改为引用 state_machine 常量；`optimize_skill` / `optimize_events` 新增 `session_id` 参数（app.py 传入，用于记录落盘）。
+- 测试：check_mock 重写为状态机断言（接受轮 / 双回滚轮 / 跳过轮 / 评测器单元 / 记录落盘与容错），check_editor 端到端改经 state_machine（LLM 路径第 1 次尝试即接受），check_backend 断言 7 阶段与编辑记录接口。
+
 ## 2026-10-21
 
 ### 新增
